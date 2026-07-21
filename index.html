@@ -133,7 +133,13 @@
 
 /* ---- Reset --------------------------------------------------------------- */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; }
+/* 100dvh over 100%/100vh: on mobile (especially standalone PWA, where there's
+   no browser chrome to auto-resize against), a plain percentage height chain
+   can end up shorter than the real visible screen, leaving a dead gap below
+   fixed bottom UI. dvh tracks the actual visual viewport. The 100% stays as
+   the fallback for browsers that don't understand dvh (an unsupported unit
+   invalidates just that one declaration, not the whole rule). */
+html, body { height: 100%; height: 100dvh; }
 body {
   font-family: var(--font);
   font-size: var(--fs-md);
@@ -1261,6 +1267,11 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
     position: fixed; inset-block: 0; z-index: calc(var(--z-nav) + 2);
     width: min(84vw, 300px); --sidebar-w: min(84vw, 300px);
     box-shadow: var(--shadow-lg);
+    /* Same status-bar overlap the topbar had: the drawer spans the real
+       screen edge (inset-block:0), so its own header/footer need the same
+       safe-area clearance — this was missed when only .topbar got fixed. */
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     /* No left/right transition: this engine leaves such transitions stuck at the
        start value, so the drawer would never actually move. Instant is reliable.
        (The scrim still fades via its own opacity transition.) */
