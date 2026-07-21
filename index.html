@@ -279,8 +279,16 @@ ul, ol { list-style: none; }
    would let .view grow past the viewport instead of scrolling inside it. */
 .main { grid-column: 2; height: 100%; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .topbar {
-  height: 62px; flex: none; display: flex; align-items: center; gap: var(--s-3);
-  padding: 0 var(--s-6); border-bottom: 1px solid var(--border);
+  /* box-sizing:border-box + the safe-area padding folded into height: an
+     installed PWA (display:standalone) has no browser chrome pushing content
+     below the OS status bar, so without this the clock/battery icons sit on
+     top of our own topbar buttons. viewport-fit=cover (already in the meta
+     tag) is what makes env(safe-area-inset-*) resolve to a real value here. */
+  box-sizing: border-box;
+  height: calc(62px + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  flex: none; display: flex; align-items: center; gap: var(--s-3);
+  padding-inline: var(--s-6); border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg-elev) 82%, transparent);
   backdrop-filter: saturate(1.4) blur(12px); position: relative; z-index: 5;
 }
@@ -1239,7 +1247,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
   .shell { grid-template-columns: 1fr; }
   .main { grid-column: 1; }
   .view { padding: var(--s-4) var(--s-4) 92px; }
-  .topbar { padding: 0 var(--s-4); height: 58px; }
+  .topbar { padding-inline: var(--s-4); height: calc(58px + env(safe-area-inset-top, 0px)); }
 
   /* Sidebar becomes a slide-in drawer (opened by the topbar hamburger). Full
      nav is reachable here — the bottom bar only carries the 4 most-used pages,
@@ -3761,27 +3769,18 @@ const PWA = (() => {
     link.href = url;
     let apple = el('link', { rel: 'apple-touch-icon', href: iconDataURL(180) }); document.head.appendChild(apple);
   }
-  /* Service worker: caches the shell for offline use. Registered from a Blob
-     URL so we stay single-file. NOTE: real SW control requires the page to be
-     served over http(s) with matching scope — under file:// it is a no-op and
-     the app still works fully offline because everything lives in this file. */
+  /* Service worker: caches the shell for offline use, served from a real
+     sw.js file sitting next to index.html. A Blob-URL registration was tried
+     first to keep everything in one file, but browsers reject non-http(s)
+     script URLs for service workers outright (verified: `Failed to register
+     a ServiceWorker: The URL protocol of the script ('blob:...') is not
+     supported`) — so it silently never ran. sw.js only matters for the
+     hosted/HTTPS deployment; opening index.html directly via file:// never
+     reaches this (protocol guard below), so the app is still a single file
+     to author and to open locally. */
   async function registerSW() {
     if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
-    const swCode = `
-      const CACHE = 'lifeos-shell-v1';
-      self.addEventListener('install', (e) => { self.skipWaiting();
-        e.waitUntil(caches.open(CACHE).then(c => c.addAll([location.href.replace(/[^/]*$/, '')])).catch(()=>{})); });
-      self.addEventListener('activate', (e) => { e.waitUntil(self.clients.claim()); });
-      self.addEventListener('fetch', (e) => {
-        if (e.request.method !== 'GET') return;
-        e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(res => {
-          const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)).catch(()=>{}); return res;
-        }).catch(() => caches.match(location.href))));
-      });`;
-    try {
-      const url = URL.createObjectURL(new Blob([swCode], { type: 'text/javascript' }));
-      await navigator.serviceWorker.register(url).catch(() => {});
-    } catch {}
+    try { await navigator.serviceWorker.register('./sw.js'); } catch {}
   }
   function init() {
     injectManifest();
