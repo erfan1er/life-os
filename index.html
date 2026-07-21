@@ -283,7 +283,7 @@ ul, ol { list-style: none; }
 /* Main */
 /* min-height:0 is required — flex/grid items default to min-height:auto, which
    would let .view grow past the viewport instead of scrolling inside it. */
-.main { grid-column: 2; height: 100%; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.main { grid-column: 2; height: 100%; display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
 .topbar {
   /* box-sizing:border-box + the safe-area padding folded into height: an
      installed PWA (display:standalone) has no browser chrome pushing content
@@ -1252,7 +1252,9 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
   :root { --fs-3xl: 27px; --fs-2xl: 22px; --fs-xl: 19px; }
   .shell { grid-template-columns: 1fr; }
   .main { grid-column: 1; }
-  .view { padding: var(--s-4) var(--s-4) 92px; }
+  /* Bottom padding is just FAB clearance now (the botnav is a flow item that
+     takes its own space below the view, not an overlay). */
+  .view { padding: var(--s-4) var(--s-4) 80px; }
   .topbar { padding-inline: var(--s-4); height: calc(58px + env(safe-area-inset-top, 0px)); }
 
   /* Sidebar becomes a slide-in drawer (opened by the topbar hamburger). Full
@@ -1301,9 +1303,12 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
   .notes-list { max-height: 46vh; }
   .note-editor { min-height: 60vh; }
   .botnav {
-    display: flex; position: fixed; bottom: 0; inset-inline: 0; z-index: var(--z-nav);
+    /* Flow flex item at the bottom of the .main column (NOT fixed) — see JS
+       note. flex:none so it keeps its height; the .view above it takes the
+       remaining space and scrolls internally. */
+    display: flex; flex: none; position: static;
     height: calc(66px + env(safe-area-inset-bottom, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: color-mix(in srgb, var(--bg-elev) 92%, transparent); backdrop-filter: blur(16px) saturate(1.4);
+    background: var(--bg-elev);
     border-top: 1px solid var(--border); align-items: stretch; justify-content: space-around;
   }
   .bn-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
@@ -1311,7 +1316,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
   .bn-item.active { color: var(--brand); }
   .bn-item .bn-ic { width: 28px; height: 28px; display: grid; place-items: center; }
   .sb-collapse-btn { display: none; }  /* drawer is always full on mobile */
-  .bn-fab { position: fixed; inset-inline-end: 18px; bottom: calc(82px + env(safe-area-inset-bottom, 0px)); z-index: var(--z-nav);
+  .bn-fab { position: absolute; inset-inline-end: 18px; bottom: calc(82px + env(safe-area-inset-bottom, 0px)); z-index: var(--z-nav);
     width: 56px; height: 56px; border-radius: 18px; color: #fff; display: grid; place-items: center;
     background: linear-gradient(135deg, var(--brand), var(--brand-700));
     box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 8px 24px color-mix(in srgb, var(--brand) 45%, transparent);
@@ -2805,7 +2810,12 @@ const Layout = (() => {
     shell.append(scrim, sidebar, main);
     app.appendChild(shell);
 
-    /* Bottom nav (mobile) */
+    /* Bottom nav (mobile). Lives INSIDE .main (a 100dvh flex column) as a
+       normal flow item, NOT position:fixed — iOS Safari's fixed-bottom
+       tracking is buggy (as the toolbar collapses, a fixed bottom:0 bar
+       drifts and leaves a dead gap below it). As a flex item at the end of a
+       dvh-sized column it always sits flush on the real bottom edge. Hidden
+       on desktop via `.botnav{display:none}` so it costs nothing there. */
     const bn = el('.botnav');
     BOTTOM.forEach(n => bn.appendChild(el('.bn-item', { dataset: { nav: n }, onclick: () => Router.go(n) }, [
       el('.bn-ic', { html: icon(navIconFor(n)) }), el('span', { text: I18n.t('nav_' + n) }),
@@ -2813,10 +2823,11 @@ const Layout = (() => {
     bn.appendChild(el('.bn-item', { dataset: { nav: 'settings' }, onclick: () => Router.go('settings') }, [
       el('.bn-ic', { html: icon('settings') }), el('span', { text: I18n.t('nav_settings') }),
     ]));
-    app.appendChild(bn);
-    // FAB = quick-add a task for today (was opening search — the wrong action
-    // for a "+" button). Predictable primary create, whatever page you're on.
-    app.appendChild(el('.bn-fab', { 'aria-label': I18n.t('newTask'), html: icon('plus'),
+    main.appendChild(bn);
+    // FAB = quick-add a task for today. Absolute inside .main (which is
+    // position:relative + dvh-sized) so it tracks the same bottom edge as the
+    // flow botnav instead of drifting like a viewport-fixed element on iOS.
+    main.appendChild(el('.bn-fab', { 'aria-label': I18n.t('newTask'), html: icon('plus'),
       onclick: () => TaskUI.openEditor(null, () => { if (Router.current() === 'today' || Router.current() === 'dashboard') Router.render(); }, { kind: 'daily', date: Jalali.todayKey() }) }));
 
     app.classList.add('ready');
