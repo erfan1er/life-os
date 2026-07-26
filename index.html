@@ -1806,7 +1806,7 @@ const I18n = (() => {
       goalsPageHint: 'هدف بزرگ را به زیرهدف و کار بشکن — با انجام کارهای متصل، درصد پیشرفت خودکار محاسبه می‌شود.',
       avgProgress: 'میانگین پیشرفت', nearestDeadline: 'نزدیک‌ترین ددلاین', noDeadline: 'بدون ددلاین',
       openGoalHint: 'برای جزئیات کلیک کن', roadmapDragHint: 'برای جابه‌جایی نقشه، آن را با موس بگیر و بکش؛ روی هر گره کلیک کن تا هدف باز شود.',
-      moreOptions: 'جزئیات بیشتر (اختیاری)',
+      moreOptions: 'جزئیات بیشتر (اختیاری)', taskDate: 'تاریخ',
       addSubGoalPh: 'زیرهدف جدید — بنویس و Enter بزن…', resetView: 'بازنشانی نما',
       customGoal: 'هدف دلخواه خودت', customGoalHint: 'با هر عنوان و جزئیاتی که بخواهی، از صفر بساز',
       templatesHint: 'این‌ها فقط پیشنهاد برای شروع سریع‌اند — هر هدف دلخواهی می‌توانی بسازی.',
@@ -2089,7 +2089,7 @@ const I18n = (() => {
       goalsPageHint: 'Break a big goal into sub-goals and tasks — progress is computed automatically from linked work.',
       avgProgress: 'Average progress', nearestDeadline: 'Nearest deadline', noDeadline: 'No deadline',
       openGoalHint: 'Click for details', roadmapDragHint: 'Drag the map with your mouse to pan; click any node to open the goal.',
-      moreOptions: 'More details (optional)',
+      moreOptions: 'More details (optional)', taskDate: 'Date',
       addSubGoalPh: 'New sub-goal — type and press Enter…', resetView: 'Reset view',
       customGoal: 'Your own goal', customGoalHint: 'Start from scratch with any title and details',
       templatesHint: 'These are just quick-start suggestions — you can create any goal you want.',
@@ -4228,12 +4228,14 @@ const TaskUI = (() => {
     const xpBadge = el('.xp-live', {}, [el('span', { html: icon('bolt') }), xpVal, el('span', { text: 'XP' })]);
     const recalcXp = () => { xpVal.textContent = I18n.num(XP.forTask(t)); };
 
-    const priPick = el('.pick');
-    Tasks.PRIORITIES.forEach(p => priPick.appendChild(el('button' + (t.priority === p ? '.on' : ''), { type: 'button', text: I18n.t('p_' + p),
-      onclick: (e) => { t.priority = p; recalcXp(); $$('button', priPick).forEach(b => b.classList.remove('on')); e.target.classList.add('on'); } })));
+    const priPick = Views.picker(Tasks.PRIORITIES.map(p => [p, I18n.t('p_' + p)]), t.priority,
+      (v) => { t.priority = v; recalcXp(); });
 
-    const kindSel = el('select.select', { onchange: (e) => { t.kind = e.target.value; recalcXp(); } },
-      ['daily', 'weekly', 'routine'].map(k => el('option', { value: k, text: I18n.t('kind_' + k), selected: t.kind === k })));
+    // Two or three choices don't deserve a dropdown — one tap instead of three.
+    const kindPick = Views.picker(['daily', 'weekly', 'routine'].map(k => [k, I18n.t('kind_' + k)]), t.kind,
+      (v) => { t.kind = v; recalcXp(); dateField.classList.toggle('hidden', v === 'routine'); });
+
+    const dateInput = JalaliPicker.input({ value: t.date, onChange: (k) => t.date = k });
 
     const catSel = el('select.select', { onchange: (e) => t.category = e.target.value }, [
       el('option', { value: '', text: I18n.t('optional') }),
@@ -4248,9 +4250,9 @@ const TaskUI = (() => {
     const tagsInput = el('input.input', { value: (t.tags || []).join('، '), placeholder: I18n.t('tagsPh'),
       oninput: (e) => t.tags = e.target.value.split(/[،,]/).map(s => s.trim()).filter(Boolean) });
 
-    const daysRow = el('.pick' + (t.repeat.type === 'weekly' ? '' : '.hidden'));
-    Jalali.weekdays[I18n.get()].forEach((w, i) => daysRow.appendChild(el('button' + ((t.repeat.days || []).includes(i) ? '.on' : ''), { type: 'button', text: w,
-      onclick: (e) => { t.repeat.days = t.repeat.days || []; const idx = t.repeat.days.indexOf(i); if (idx >= 0) t.repeat.days.splice(idx, 1); else t.repeat.days.push(i); e.target.classList.toggle('on'); } })));
+    const daysRow = Views.picker(Jalali.weekdays[I18n.get()].map((w, i) => [i, w]), t.repeat.days || [],
+      (v) => t.repeat.days = v, { multi: true });
+    daysRow.classList.toggle('hidden', t.repeat.type !== 'weekly');
     const monthDayIn = el('input.input', { type: 'number', min: 1, max: 31, value: t.repeat.monthDay || '', placeholder: '1-31',
       oninput: (e) => t.repeat.monthDay = clamp(+e.target.value || 1, 1, 31) });
     const monthDayField = field(I18n.t('monthDay'), monthDayIn);
@@ -4275,23 +4277,32 @@ const TaskUI = (() => {
 
     const notesInput = el('textarea.textarea', { placeholder: I18n.t('taskNotesPh'), oninput: (e) => t.notes = e.target.value }, t.notes || '');
 
-    const form = el('.col.gap-4', {}, [
-      field(I18n.t('title'), titleInput),
+    /* Four things make a task: what, when it belongs, how much it matters, and
+       what time. Everything else (13 inputs before this) is refinement and
+       lives behind the fold, pre-opened when the task already uses it. */
+    const dateField = field(I18n.t('taskDate'), dateInput);
+    dateField.classList.toggle('hidden', t.kind === 'routine');
+    const [moreBtn, moreWrap] = Views.advanced([
       field(I18n.t('description'), descInput),
-      el('.grid.g-2', {}, [field(I18n.t('taskKind'), kindSel),
-        field(I18n.t('xpAuto'), el('.col.gap-1', {}, [xpBadge, el('.hint', { text: I18n.t('xpAutoHint') })]))]),
-      el('.grid.g-2', {}, [field(I18n.t('priority'), priPick), field(I18n.t('category'), catSel)]),
-      el('.grid.g-2', {}, [field(I18n.t('dueTime'), timeInput), field(I18n.t('estDuration'), estInput)]),
-      el('.grid.g-2', {}, [
-        field(I18n.t('goal'), el('.col.gap-1', {}, [goalSel, el('.hint', { text: I18n.t('goalHint') })])),
-        field(I18n.t('tags'), tagsInput)]),
+      el('.grid.g-2', {}, [field(I18n.t('category'), catSel), field(I18n.t('estDuration'), estInput)]),
+      field(I18n.t('goal'), goalSel, I18n.t('goalHint')),
+      field(I18n.t('tags'), tagsInput),
       el('.grid.g-2', {}, [field(I18n.t('repeat'), repSel), monthDayField]),
       field(I18n.t('repeatDays'), daysRow),
       field(I18n.t('checklist'), el('.col.gap-2', {}, [clList, clAdd])),
-      field(I18n.t('taskNotes'), el('.col.gap-1', {}, [notesInput, el('.hint', { text: I18n.t('taskNotesHint') })])),
+      field(I18n.t('taskNotes'), notesInput, I18n.t('taskNotesHint')),
+    ], { openIf: !!(t.description || t.category || t.estimateMin || t.goalId || (t.tags || []).length
+      || (t.repeat && t.repeat.type !== 'none') || (t.checklist || []).length || t.notes) });
+
+    const form = el('.col.gap-4', {}, [
+      field(I18n.t('title'), titleInput),
+      el('.grid.g-2', {}, [field(I18n.t('taskKind'), kindPick), dateField]),
+      field(I18n.t('priority'), el('.row.between.gap-3.wrap', {}, [priPick, xpBadge])),
+      field(I18n.t('dueTime'), timeInput),
+      moreBtn, moreWrap,
     ]);
 
-    const v = await UI.modal({ title: isNew ? I18n.t('newTask') : I18n.t('editTask'), body: form, width: '580px', actions: [
+    const v = await UI.modal({ title: isNew ? I18n.t('newTask') : I18n.t('editTask'), body: form, width: '440px', actions: [
       !isNew ? { label: I18n.t('delete'), value: 'delete', variant: 'danger' } : null,
       { label: I18n.t('cancel'), value: 'cancel', variant: 'ghost' },
       { label: I18n.t('save'), value: 'save', variant: 'primary' },
@@ -4299,6 +4310,9 @@ const TaskUI = (() => {
 
     if (v === 'save') {
       if (!t.title.trim()) { UI.toast('error', I18n.t('title') + '؟'); return; }
+      // Category is no longer in the primary form — a task linked to a goal
+      // inherits that goal's category instead of being asked for it.
+      if (!t.category && t.goalId) t.category = (goals.find(g => g.id === t.goalId) || {}).category || '';
       if (t.kind === 'routine') { t.date = null; if (t.repeat.type === 'none') t.repeat.type = 'daily'; }
       else {
         if (!t.date) t.date = Jalali.todayKey();
@@ -5659,31 +5673,54 @@ const HabitsView = (() => {
     return wrap;
   }
 
+  const HABIT_COLORS = ['#3B82F6', '#7C5CFC', '#22C55E', '#F59E0B', '#EF4444', '#EC4899', '#14B8A6', '#F97316'];
+
   async function openEditor(existing, onSaved, defaults = {}) {
     const isNew = !existing, h = existing ? deepClone(existing) : Habits.make(defaults);
-    const titleInput = el('input.input', { value: h.title, placeholder: I18n.t('newHabit'), oninput: (e) => h.title = e.target.value });
-    const emojiRow = el('.pick');
-    Habits.EMOJIS.forEach(em => emojiRow.appendChild(el('button' + (h.icon === em ? '.on' : ''), { type: 'button', text: em, style: { fontSize: '18px' }, onclick: (e) => { h.icon = em; $$('button', emojiRow).forEach(b => b.classList.remove('on')); e.currentTarget.classList.add('on'); } })));
-    const colorRow = el('.swatches');
-    ['#3B82F6', '#7C5CFC', '#22C55E', '#F59E0B', '#EF4444', '#EC4899', '#14B8A6', '#F97316'].forEach(c => colorRow.appendChild(el('.swatch' + (h.color === c ? '.on' : ''), { style: { background: c }, onclick: (e) => { h.color = c; $$('.swatch', colorRow).forEach(s => s.classList.remove('on')); e.currentTarget.classList.add('on'); } })));
-    const daysRow = el('.pick' + (h.type === 'custom' ? '' : '.hidden'));
-    Jalali.weekdays[I18n.get()].forEach((w, i) => daysRow.appendChild(el('button' + ((h.targetDays || []).includes(i) ? '.on' : ''), { type: 'button', text: w, onclick: (e) => { h.targetDays = h.targetDays || []; const idx = h.targetDays.indexOf(i); if (idx >= 0) h.targetDays.splice(idx, 1); else h.targetDays.push(i); e.currentTarget.classList.toggle('on'); } })));
-    const typeSel = el('select.select', { onchange: (e) => { h.type = e.target.value; daysRow.classList.toggle('hidden', e.target.value !== 'custom'); } }, Habits.TYPES.map(t => el('option', { value: t, text: I18n.t('ht_' + t), selected: h.type === t })));
+    // A new habit picks the next palette colour instead of the same purple for
+    // everything — the colour is what makes a habit recognisable in a list.
+    if (isNew && !defaults.color) h.color = HABIT_COLORS[(await DB.all('habits')).length % HABIT_COLORS.length];
+
+    const titleInput = el('input.input.grow', { value: h.title, placeholder: I18n.t('newHabit'), oninput: (e) => h.title = e.target.value });
+    // Emoji lives on the title row as a compact trigger; the full grid opens on
+    // demand instead of occupying a permanent row of 18 buttons.
+    const emojiBtn = el('button.btn.icon', { type: 'button', style: { fontSize: '17px' }, text: h.icon || '🎯' });
+    const emojiRow = Views.picker(Habits.EMOJIS.map(em => [em, em]), h.icon,
+      (v) => { h.icon = v; emojiBtn.textContent = v; emojiPop.classList.add('hidden'); }, { fontSize: '18px' });
+    const emojiPop = el('.hidden', {}, [emojiRow]);
+    emojiBtn.onclick = () => emojiPop.classList.toggle('hidden');
+
+    const colorRow = Views.swatches(HABIT_COLORS, h.color, (c) => h.color = c);
+    const daysRow = Views.picker(Jalali.weekdays[I18n.get()].map((w, i) => [i, w]), h.targetDays || [],
+      (v) => h.targetDays = v, { multi: true });
+    const daysField = field(I18n.t('scheduledDays'), daysRow);
+    daysField.classList.toggle('hidden', h.type !== 'custom');
+    const typePick = Views.picker(Habits.TYPES.map(t => [t, I18n.t('ht_' + t)]), h.type,
+      (v) => { h.type = v; daysField.classList.toggle('hidden', v !== 'custom'); });
     const targetInput = el('input.input', { type: 'number', min: 1, value: h.target || 1, oninput: (e) => h.target = Math.max(1, +e.target.value || 1) });
     const unitInput = el('input.input', { value: h.unit || '', placeholder: I18n.t('unitPh'), oninput: (e) => h.unit = e.target.value });
     const descInput = el('textarea.textarea', { style: { minHeight: '52px' }, oninput: (e) => h.description = e.target.value }, h.description || '');
     const notesInput = el('textarea.textarea', { style: { minHeight: '52px' }, oninput: (e) => h.notes = e.target.value }, h.notes || '');
-    const form = el('.col.gap-4', {}, [
-      field(I18n.t('title'), titleInput),
-      field('', emojiRow),
+    // reminderAt has been in the model (and scanned by Notify) since day one
+    // with no UI to set it.
+    const remindInput = TimePicker.input({ value: h.reminderAt, onChange: (v) => h.reminderAt = v || null });
+
+    const [moreBtn, moreWrap] = Views.advanced([
       field(I18n.t('colorLabel'), colorRow),
-      el('.grid.g-2', {}, [field(I18n.t('habitType'), typeSel), field(I18n.t('target'), targetInput)]),
-      field(I18n.t('scheduledDays'), daysRow),
-      field(I18n.t('unitLabel'), unitInput),
+      daysField,
+      field(I18n.t('reminder'), remindInput),
       field(I18n.t('description'), descInput),
       field(I18n.t('goalNotes'), notesInput),
+    ], { openIf: !!(existing && (h.description || h.notes || h.reminderAt || h.type === 'custom')) });
+
+    const form = el('.col.gap-4', {}, [
+      field(I18n.t('title'), el('.row.gap-2', {}, [emojiBtn, titleInput])),
+      emojiPop,
+      field(I18n.t('habitType'), typePick),
+      el('.grid.g-2', {}, [field(I18n.t('target'), targetInput), field(I18n.t('unitLabel'), unitInput)]),
+      moreBtn, moreWrap,
     ]);
-    const v = await UI.modal({ title: isNew ? I18n.t('newHabit') : I18n.t('editHabit'), body: form, width: '560px', actions: [
+    const v = await UI.modal({ title: isNew ? I18n.t('newHabit') : I18n.t('editHabit'), body: form, width: '440px', actions: [
       !isNew ? { label: I18n.t('delete'), value: 'delete', variant: 'danger' } : null,
       { label: I18n.t('cancel'), value: 'cancel', variant: 'ghost' },
       { label: I18n.t('save'), value: 'save', variant: 'primary' },
