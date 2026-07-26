@@ -339,8 +339,6 @@ ul, ol { list-style: none; }
   color: var(--text-2); transition: all var(--dur-1) var(--ease); flex: none; }
 .tb-btn:hover { background: color-mix(in srgb, var(--brand) 9%, var(--surface-2)); color: var(--brand); }
 .tb-btn:active { transform: scale(.9); }
-.tb-menu { display: none; }  /* hamburger — mobile only (see responsive block) */
-.sb-scrim { display: none; } /* drawer backdrop — only rendered/active on mobile */
 .tb-title { font-weight: 700; font-size: var(--fs-lg); }
 .tb-crumb { color: var(--text-3); font-size: var(--fs-sm); }
 .tb-spacer { flex: 1; }
@@ -1311,36 +1309,12 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
   .card.pad { padding: var(--s-5); }
   .topbar { padding-inline: var(--s-3); height: calc(50px + env(safe-area-inset-top, 0px)); }
 
-  /* Sidebar becomes a slide-in drawer (opened by the topbar hamburger). Full
-     nav is reachable here — the bottom bar only carries the 4 most-used pages,
-     so without this drawer half the app was unreachable on a phone. */
-  /* Drawer POSITION (hidden vs open) is driven entirely by JS inline physical
-     left/right — NOT by CSS logical props. This preview's engine resolves a
-     stylesheet `inset-inline-*` ahead of even an inline `!important` physical
-     inset, so any CSS-driven toggle left the "hidden" drawer stuck on screen.
-     No left/right here → JS inline sets them with no competition. */
-  .sidebar {
-    position: fixed; inset-block: 0; z-index: calc(var(--z-nav) + 2);
-    width: min(84vw, 300px); --sidebar-w: min(84vw, 300px);
-    box-shadow: var(--shadow-lg);
-    /* env(safe-area-inset-*) is 0 now that the viewport is not fit=cover (the
-       browser insets the whole page past the system bars). Kept as a harmless
-       guard in case a platform still reports real insets — it must never add
-       visible padding when they are 0. */
-    padding-top: env(safe-area-inset-top, 0px);
-    /* No left/right transition: this engine leaves such transitions stuck at the
-       start value, so the drawer would never actually move. Instant is reliable.
-       (The scrim still fades via its own opacity transition.) */
-  }
-  /* On mobile the drawer is always full (never the icon-only rail). */
-  .sidebar .sb-title, .sidebar .sb-sub, .sidebar .nav-label,
-  .sidebar .sb-section-label, .sidebar .sb-foot-txt, .sidebar .search-txt, .sidebar .sb-search .kbd { display: revert; }
-  .sidebar .nav-item { justify-content: flex-start; }
-  .sb-scrim { display: block; position: fixed; inset: 0; z-index: calc(var(--z-nav) + 1); background: rgba(0,0,0,.45);
-    backdrop-filter: blur(2px); opacity: 0; pointer-events: none; }
-  .tb-menu { display: grid; }
-  /* Bigger tap targets for the whole drawer nav on touch */
-  .sidebar .nav-item { min-height: 48px; }
+  /* No sidebar on a phone at all — the bottom bar plus the More sheet cover
+     every page, so the drawer was a second full-navigation surface (and the
+     most bug-prone code in the file: it needed inline physical left/right
+     because this engine resolves stylesheet logical insets ahead of even an
+     inline !important). */
+  .sidebar { display: none; }
   .g-2, .g-3, .g-4 { grid-template-columns: 1fr; }
   .g-auto { grid-template-columns: 1fr 1fr; }
   .h1 { line-height: 1.25; }
@@ -1383,7 +1357,6 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
     box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 4px 12px color-mix(in srgb, var(--brand) 40%, transparent); }
   .bn-add .bn-plus svg.ic { width: 21px; height: 21px; }
   .bn-add:active .bn-plus { transform: scale(.9); }
-  .sb-collapse-btn { display: none; }  /* drawer is always full on mobile */
 
   /* Touch targets — ONLY for controls a finger actually drives. The old block
      bumped ~10 selectors, which made the phone bigger than the desktop instead
@@ -2861,7 +2834,6 @@ const Layout = (() => {
     const main = el('.main');
     main.append(
       el('.topbar', {}, [
-        el('button.tb-btn.tb-menu', { html: icon('menu'), 'aria-label': I18n.t('menu'), onclick: openDrawer }),
         el('.col.grow', { style: { minWidth: '0' } }, [ el('.tb-title', { id: 'tbTitle', text: '' }) ]),
         el('.tb-pill', { id: 'netPill' }, [ el('.dot'), el('span', { text: navigator.onLine ? I18n.t('online') : I18n.t('offline') }) ]),
         el('button.tb-btn', { id: 'themeBtn', html: icon(Theme.resolved() === 'dark' ? 'sun' : 'moon'),
@@ -2872,9 +2844,7 @@ const Layout = (() => {
       el('.view', { id: 'view', role: 'main' }),
     );
 
-    // Drawer backdrop — tapping it closes the mobile sidebar.
-    const scrim = el('.sb-scrim', { onclick: closeDrawer });
-    shell.append(scrim, sidebar, main);
+    shell.append(sidebar, main);
     app.appendChild(shell);
 
     /* Bottom nav (mobile). Lives INSIDE .main (a 100dvh flex column) as a
@@ -2903,9 +2873,6 @@ const Layout = (() => {
 
     app.classList.add('ready');
     app.setAttribute('aria-hidden', 'false');
-    // Drawer starts hidden (harmless on desktop where .sidebar is a static grid
-    // item and ignores inline left/right).
-    applyDrawer(false);
   }
 
   function navIconFor(name) { for (const g of NAV) for (const it of g.items) if (it.name === name) return it.icon; return 'settings'; }
@@ -2999,7 +2966,7 @@ const Layout = (() => {
     setTimeout(() => document.addEventListener('click', function off() { $('.notif-panel')?.remove(); document.removeEventListener('click', off); }, { once: true }), 0);
   }
   function navItem(it) {
-    const go = () => { Router.go(it.name); closeDrawer(); };
+    const go = () => Router.go(it.name);
     return el('.nav-item', { dataset: { nav: it.name }, role: 'link', tabindex: 0,
       onclick: go,
       onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } } }, [
@@ -3017,25 +2984,6 @@ const Layout = (() => {
   function setTitle(txt) { const t = $('#tbTitle'); if (t) t.textContent = txt; document.title = txt + ' · ' + I18n.t('appName'); }
   function toggleCollapse() { const c = !Prefs.get('sidebarCollapsed'); Prefs.set('sidebarCollapsed', c);
     $('#shell')?.classList.toggle('collapsed', c); }
-  /** Mobile slide-in drawer, driven by inline PHYSICAL left/right (see the CSS
-      note — logical insets don't cascade reliably in this engine). Esc / scrim /
-      picking a page all close it. */
-  function applyDrawer(open) {
-    const sb = $('.sidebar'), scrim = $('.sb-scrim');
-    if (sb) {
-      const rtl = I18n.dir() === 'rtl';
-      const near = rtl ? 'right' : 'left', far = rtl ? 'left' : 'right';
-      sb.style[far] = 'auto';
-      // Hidden offset must be a plain px value (not calc/min): this engine can't
-      // interpolate calc()→0 and leaves the transition stuck at the start. Drawer
-      // is ≤300px + shadow, so -340px guarantees fully off-screen.
-      sb.style[near] = open ? '0px' : '-340px';
-    }
-    if (scrim) { scrim.style.opacity = open ? '1' : '0'; scrim.style.pointerEvents = open ? 'auto' : 'none'; }
-  }
-  function openDrawer() { applyDrawer(true); document.addEventListener('keydown', onDrawerEsc); }
-  function closeDrawer() { applyDrawer(false); document.removeEventListener('keydown', onDrawerEsc); }
-  function onDrawerEsc(e) { if (e.key === 'Escape') closeDrawer(); }
   function cycleTheme() { const order = ['light', 'dark', 'system']; const cur = Prefs.get('theme');
     const next = order[(order.indexOf(cur) + 1) % order.length]; Theme.set(next);
     const b = $('#themeBtn'); if (b) b.innerHTML = icon(Theme.resolved() === 'dark' ? 'sun' : 'moon');
