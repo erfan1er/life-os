@@ -878,7 +878,6 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .task-note svg { width: 12px; height: 12px; flex: none; margin-top: 2px; }
 .mchip.xpc { background: var(--brand-soft); color: var(--brand); font-weight: 700; }
 .mchip.kind-w { background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal); font-weight: 700; }
-.mchip.kind-r { background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange); font-weight: 700; }
 .xp-live { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: var(--r-md); background: var(--brand-soft); color: var(--brand); font-weight: 700; width: fit-content; }
 .xp-live svg { width: 15px; height: 15px; }
 
@@ -1762,13 +1761,13 @@ const I18n = (() => {
       morningCheckin: 'ثبت صبحگاهی', sleepTime: 'خواب', wakeTime: 'بیداری', sleepQuality: 'کیفیت خواب',
       mood: 'حال‌وهوا', energy: 'انرژی', weight: 'وزن', waterTarget: 'هدف آب', water: 'آب',
       intention: 'مهم‌ترین کار امروز', intentionPh: 'اگر امروز فقط یک کار انجام بشه، اون چیه؟',
-      weeklyTasks: 'کارهای هفتگی', dailyTasks: 'کارهای روزانه', dailyRoutines: 'روتین‌های روزانه',
+      weeklyTasks: 'کارهای هفتگی', dailyTasks: 'کارهای روزانه', noHabitsToday: 'عادتی برای امروز تنظیم نشده',
       dailyJournal: 'دفترچه روزانه', reflection: 'بازتاب روز', gratitude: 'قدردانی', lessons: 'درس‌های امروز', tomorrowPlan: 'برنامه فردا',
       closeDay: 'بستن روز', freeDay: 'روز آزاد', resetDay: 'بازنشانی روز', unlockDay: 'باز کردن روز',
       dayClosed: 'این روز بسته شده', dayClosedSub: 'برای ویرایش، ابتدا روز را باز کنید.',
       title: 'عنوان', titlePh: 'چه کاری باید انجام شود؟', description: 'توضیحات', priority: 'اولویت', category: 'دسته', goal: 'هدف', tags: 'برچسب‌ها', tagsPh: 'با ویرگول جدا کنید',
       dueTime: 'زمان سررسید', estDuration: 'مدت تخمینی (دقیقه)', actualDuration: 'مدت واقعی', xpReward: 'پاداش XP',
-      taskKind: 'نوع کار', kind_daily: 'روزانه', kind_weekly: 'هفتگی', kind_routine: 'روتین',
+      taskKind: 'نوع کار', kind_daily: 'روزانه', kind_weekly: 'هفتگی',
       xpAuto: 'پاداش XP (خودکار)', xpAutoHint: 'بر اساس اولویت، مدت تخمینی و اندازهٔ چک‌لیست محاسبه می‌شود؛ کار هفتگی ×۱٫۵.',
       goalHint: 'با تکمیل این کار، پیشرفت هدف انتخاب‌شده به‌روز می‌شود.',
       taskNotesHint: 'یادداشت زیر عنوان کار، روی کارت آن نمایش داده می‌شود.',
@@ -1807,6 +1806,7 @@ const I18n = (() => {
       avgProgress: 'میانگین پیشرفت', nearestDeadline: 'نزدیک‌ترین ددلاین', noDeadline: 'بدون ددلاین',
       openGoalHint: 'برای جزئیات کلیک کن', roadmapDragHint: 'برای جابه‌جایی نقشه، آن را با موس بگیر و بکش؛ روی هر گره کلیک کن تا هدف باز شود.',
       moreOptions: 'جزئیات بیشتر (اختیاری)', taskDate: 'تاریخ',
+      routinesMigrated: '{n} روتین به عادت تبدیل شد (یک نسخهٔ پشتیبان قبل از تغییر ذخیره شد)',
       addSubGoalPh: 'زیرهدف جدید — بنویس و Enter بزن…', resetView: 'بازنشانی نما',
       customGoal: 'هدف دلخواه خودت', customGoalHint: 'با هر عنوان و جزئیاتی که بخواهی، از صفر بساز',
       templatesHint: 'این‌ها فقط پیشنهاد برای شروع سریع‌اند — هر هدف دلخواهی می‌توانی بسازی.',
@@ -2045,13 +2045,13 @@ const I18n = (() => {
       morningCheckin: 'Morning check-in', sleepTime: 'Sleep', wakeTime: 'Wake', sleepQuality: 'Sleep quality',
       mood: 'Mood', energy: 'Energy', weight: 'Weight', waterTarget: 'Water goal', water: 'Water',
       intention: "Today's #1 task", intentionPh: 'If only one thing gets done today, what is it?',
-      weeklyTasks: 'Weekly tasks', dailyTasks: 'Daily tasks', dailyRoutines: 'Daily routines',
+      weeklyTasks: 'Weekly tasks', dailyTasks: 'Daily tasks', noHabitsToday: 'No habits scheduled for this day',
       dailyJournal: 'Daily journal', reflection: 'Reflection', gratitude: 'Gratitude', lessons: 'Lessons learned', tomorrowPlan: 'Plan for tomorrow',
       closeDay: 'Close day', freeDay: 'Free day', resetDay: 'Reset day', unlockDay: 'Unlock day',
       dayClosed: 'This day is closed', dayClosedSub: 'Unlock the day to edit it.',
       title: 'Title', titlePh: 'What needs to be done?', description: 'Description', priority: 'Priority', category: 'Category', goal: 'Goal', tags: 'Tags', tagsPh: 'Comma separated',
       dueTime: 'Due time', estDuration: 'Estimate (min)', actualDuration: 'Actual', xpReward: 'XP reward',
-      taskKind: 'Task type', kind_daily: 'Daily', kind_weekly: 'Weekly', kind_routine: 'Routine',
+      taskKind: 'Task type', kind_daily: 'Daily', kind_weekly: 'Weekly',
       xpAuto: 'XP reward (auto)', xpAutoHint: 'Computed from priority, estimate and checklist size; weekly tasks ×1.5.',
       goalHint: 'Completing this task updates the selected goal’s progress.',
       taskNotesHint: 'Shown on the task card, under its title.',
@@ -2090,6 +2090,7 @@ const I18n = (() => {
       avgProgress: 'Average progress', nearestDeadline: 'Nearest deadline', noDeadline: 'No deadline',
       openGoalHint: 'Click for details', roadmapDragHint: 'Drag the map with your mouse to pan; click any node to open the goal.',
       moreOptions: 'More details (optional)', taskDate: 'Date',
+      routinesMigrated: '{n} routines became habits (a backup was saved first)',
       addSubGoalPh: 'New sub-goal — type and press Enter…', resetView: 'Reset view',
       customGoal: 'Your own goal', customGoalHint: 'Start from scratch with any title and details',
       templatesHint: 'These are just quick-start suggestions — you can create any goal you want.',
@@ -4133,7 +4134,6 @@ const TaskUI = (() => {
     if (t.notes) main.appendChild(el('.task-note', {}, [el('span', { html: icon('notes') }), el('span', { text: t.notes })]));
     const meta = el('.task-meta');
     if (t.kind === 'weekly') meta.appendChild(el('.mchip.kind-w', {}, [el('span', { html: icon('week') }), el('span', { text: I18n.t('kind_weekly') })]));
-    if (t.kind === 'routine') meta.appendChild(el('.mchip.kind-r', {}, [el('span', { html: icon('repeat') }), el('span', { text: I18n.t('kind_routine') })]));
     if (t.dueTime) meta.appendChild(el('.mchip' + (Tasks.isOverdue(t) ? '.overdue' : ''), {}, [el('span', { html: icon('clock') }), el('span', { text: I18n.num(t.dueTime) })]));
     if (t.priority !== 'none') meta.appendChild(el('.mchip', {}, [el('span', { html: icon('flag') }), el('span', { text: I18n.t('p_' + t.priority) })]));
     if (t.category) meta.appendChild(el('.mchip', {}, [el('span', { html: icon('tag') }), el('span', { text: I18n.t('cat_' + t.category) })]));
@@ -4231,9 +4231,10 @@ const TaskUI = (() => {
     const priPick = Views.picker(Tasks.PRIORITIES.map(p => [p, I18n.t('p_' + p)]), t.priority,
       (v) => { t.priority = v; recalcXp(); });
 
-    // Two or three choices don't deserve a dropdown — one tap instead of three.
-    const kindPick = Views.picker(['daily', 'weekly', 'routine'].map(k => [k, I18n.t('kind_' + k)]), t.kind,
-      (v) => { t.kind = v; recalcXp(); dateField.classList.toggle('hidden', v === 'routine'); });
+    // Two choices don't deserve a dropdown — one tap instead of three.
+    // ('routine' is gone: recurring things are habits now.)
+    const kindPick = Views.picker(['daily', 'weekly'].map(k => [k, I18n.t('kind_' + k)]), t.kind,
+      (v) => { t.kind = v; recalcXp(); });
 
     const dateInput = JalaliPicker.input({ value: t.date, onChange: (k) => t.date = k });
 
@@ -4281,7 +4282,6 @@ const TaskUI = (() => {
        what time. Everything else (13 inputs before this) is refinement and
        lives behind the fold, pre-opened when the task already uses it. */
     const dateField = field(I18n.t('taskDate'), dateInput);
-    dateField.classList.toggle('hidden', t.kind === 'routine');
     const [moreBtn, moreWrap] = Views.advanced([
       field(I18n.t('description'), descInput),
       el('.grid.g-2', {}, [field(I18n.t('category'), catSel), field(I18n.t('estDuration'), estInput)]),
@@ -4313,12 +4313,9 @@ const TaskUI = (() => {
       // Category is no longer in the primary form — a task linked to a goal
       // inherits that goal's category instead of being asked for it.
       if (!t.category && t.goalId) t.category = (goals.find(g => g.id === t.goalId) || {}).category || '';
-      if (t.kind === 'routine') { t.date = null; if (t.repeat.type === 'none') t.repeat.type = 'daily'; }
-      else {
-        if (!t.date) t.date = Jalali.todayKey();
-        // Weekly tasks belong to a week, not a single day — anchor to week start.
-        if (t.kind === 'weekly') t.date = Habits.weekStartKey(t.date);
-      }
+      if (!t.date) t.date = Jalali.todayKey();
+      // Weekly tasks belong to a week, not a single day — anchor to week start.
+      if (t.kind === 'weekly') t.date = Habits.weekStartKey(t.date);
       if (isNew) await Tasks.create(t); else await Tasks.update(t);
       UI.toast('success', I18n.t('saved')); onSaved && onSaved();
     } else if (v === 'delete') {
@@ -4341,12 +4338,6 @@ const Today = (() => {
     return (await DB.get('days', key)) || { id: key, date: key, checkin: {}, journal: {}, routineState: {}, closed: false, free: false };
   }
   const saveDay = (day) => { day.id = day.date; return DB.put('days', day); };
-  function routineApplies(r, key) {
-    const rep = r.repeat || { type: 'daily' };
-    if (rep.type === 'weekly' && rep.days && rep.days.length) return rep.days.includes(Jalali.parseKey(key).wd);
-    if (rep.type === 'monthly') return Jalali.parseKey(key).jd === (rep.monthDay || 1);
-    return true;
-  }
 
   async function render() {
     const key = cursor;
@@ -4367,7 +4358,7 @@ const Today = (() => {
       .filter(t => t.kind === 'weekly').sort(Tasks.sortFn);
     content.appendChild(taskSection('daily', I18n.t('dailyTasks'), 'today', tasks.filter(t => t.kind === 'daily'), key, readonly));
     content.appendChild(taskSection('weekly', I18n.t('weeklyTasks'), 'week', weekTasks, key, readonly));
-    content.appendChild(await routineSection(day, key, readonly));
+    content.appendChild(await habitsSection(key, readonly));
     content.appendChild(journalCard(day));
     wrap.appendChild(content);
     wrap.appendChild(dayActions(key, day));
@@ -4462,10 +4453,10 @@ const Today = (() => {
     return sec;
   }
   function quickAdd(kind, key) {
-    const dateFor = () => kind === 'routine' ? null : kind === 'weekly' ? Habits.weekStartKey(key) : key;
+    const dateFor = () => kind === 'weekly' ? Habits.weekStartKey(key) : key;
     const input = el('input', { placeholder: I18n.t('quickAddPh'), 'aria-label': I18n.t('addTask'),
       onkeydown: async (e) => { if (e.key === 'Enter' && e.target.value.trim()) { const val = e.target.value.trim(); e.target.value = '';
-        await Tasks.create({ title: val, kind, date: dateFor(), repeat: kind === 'routine' ? { type: 'daily', days: [] } : { type: 'none', days: [] } }); refresh(); } } });
+        await Tasks.create({ title: val, kind, date: dateFor(), repeat: { type: 'none', days: [] } }); refresh(); } } });
     return el('.quickadd', {}, [
       el('span', { html: icon('plus'), style: { color: 'var(--text-3)' } }), input,
       el('button.btn.add.sm', { html: icon('plus') + '<span>' + I18n.t('addTask') + '</span>', title: I18n.t('newTask'),
@@ -4473,44 +4464,32 @@ const Today = (() => {
     ]);
   }
 
-  async function routineSection(day, key, readonly) {
-    const all = await DB.all('tasks');
-    const routines = all.filter(t => t.kind === 'routine' && routineApplies(t, key)).sort(Tasks.sortFn);
-    const state = day.routineState || (day.routineState = {});
+  /* Habits, not "routines". A recurring thing used to exist twice — as a habit
+     (own page, streaks, heatmap, records store) and as a task with
+     kind:'routine' (per-day booleans on day.routineState, date:null, invisible
+     to stats/reviews/history). Now there is one concept, and it shows up on the
+     day it belongs to. Ticking a past day backfills; future days are readonly. */
+  async function habitsSection(key, readonly) {
+    const today = Jalali.todayKey();
+    const ro = readonly || key > today;
+    const habits = (await DB.all('habits'))
+      .filter(h => h.status !== 'archived' && (h.createdKey || '') <= key && Habits.isScheduled(h, key));
+    const maps = await Habits.allRecordsMaps();
     const sec = el('.card.pad.tsec');
+    const done = habits.filter(h => Habits.isComplete(h, (maps[h.id] || {})[key])).length;
     sec.appendChild(el('.tsec-head', {}, [
-      el('.tsec-ic', { html: icon('repeat') }), el('.h4.grow', { text: I18n.t('dailyRoutines') }),
-      el('.cnt', { text: `${I18n.num(routines.filter(r => state[r.id] && state[r.id].done).length)}/${I18n.num(routines.length)}` }),
+      el('.tsec-ic', { html: icon('repeat') }), el('.h4.grow', { text: I18n.t('todaysHabits') }),
+      el('.cnt', { text: `${I18n.num(done)}/${I18n.num(habits.length)}` }),
     ]));
     const listWrap = el('.tasklist');
-    if (!routines.length) listWrap.appendChild(el('.dim.small', { style: { padding: '6px 2px' }, text: I18n.t('noTasksToday') }));
-    routines.forEach(r => listWrap.appendChild(routineNode(r, day, key, readonly)));
+    if (!habits.length) listWrap.appendChild(el('.dim.small', { style: { padding: '6px 2px' }, text: I18n.t('noHabitsToday') }));
+    habits.forEach(h => listWrap.appendChild(HabitsView.row(h, maps[h.id] || {}, key, ro)));
     sec.appendChild(listWrap);
-    if (!readonly) sec.appendChild(quickAdd('routine', key));
-    return sec;
-  }
-  function routineNode(r, day, key, readonly) {
-    const st = day.routineState[r.id] || (day.routineState[r.id] = { done: false, actualSec: 0 });
-    const wrap = el('.task', { dataset: { p: r.priority }, class: st.done ? 'done' : '' });
-    wrap.appendChild(el('.pstripe'));
-    const check = el('.task-check', { role: 'checkbox', 'aria-checked': String(!!st.done), tabindex: 0, html: st.done ? icon('check') : '',
-      onclick: async (e) => { e.stopPropagation(); if (readonly) return; st.done = !st.done; st.doneAt = st.done ? Date.now() : null;
-        wrap.classList.toggle('done', st.done); check.innerHTML = st.done ? icon('check') : ''; check.setAttribute('aria-checked', String(st.done));
-        await saveDay(day);
-        if (st.done) await XP.award(XP.forTask(r), 'routine', r.id, check); refresh(); },
-      onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); check.click(); } } });
-    wrap.appendChild(check);
-    const main = el('.task-main', { onclick: () => { if (!readonly) TaskUI.openEditor(r, refresh); } });
-    main.appendChild(el('.task-title', { text: r.title }));
-    const meta = el('.task-meta', {}, [
-      el('.mchip', {}, [el('span', { html: icon('repeat') }), el('span', { text: (r.repeat && r.repeat.type === 'weekly') ? I18n.t('rp_weekly') : I18n.t('rp_daily') })]),
-    ]);
-    meta.appendChild(el('.mchip.xpc', {}, [el('span', { html: icon('bolt') }), el('span', { text: I18n.num(XP.forTask(r)) })]));
-    main.appendChild(meta); wrap.appendChild(main);
-    if (!readonly) wrap.appendChild(el('.task-actions', {}, [
-      el('button.tb-btn', { title: I18n.t('editTask'), html: icon('pen'), onclick: (e) => { e.stopPropagation(); TaskUI.openEditor(r, refresh); } }),
+    if (!ro) sec.appendChild(el('.row.gap-2', {}, [
+      el('button.btn.add.sm', { html: icon('plus') + '<span>' + I18n.t('newHabit') + '</span>', onclick: () => HabitsView.openEditor(null, refresh) }),
+      el('button.btn.sm.ghost', { html: icon('chevR') + '<span>' + I18n.t('nav_habits') + '</span>', onclick: () => Router.go('habits') }),
     ]));
-    return wrap;
+    return sec;
   }
 
   function journalCard(day) {
@@ -4554,7 +4533,7 @@ const Today = (() => {
     try { await DB.hardDelete('days', key); } catch {}
     UI.toast('success', I18n.t('resetDayToast')); refresh();
   }
-  return { render, goto, getDay, routineApplies, get cursor() { return cursor; } };
+  return { render, goto, getDay, get cursor() { return cursor; } };
 })();
 
 /* ---------------------------------------------------------------------------
@@ -4733,13 +4712,13 @@ const Week = (() => {
   }
   async function carryOver() {
     const todayK = Jalali.todayKey();
-    const overdue = (await DB.all('tasks')).filter(t => !t.completed && t.date && t.date < todayK && t.kind !== 'routine');
+    const overdue = (await DB.all('tasks')).filter(t => !t.completed && t.date && t.date < todayK);
     for (const t of overdue) { t.date = todayK; await Tasks.update(t); }
     UI.toast('success', `${I18n.t('carriedToast')} (${I18n.num(overdue.length)})`); refresh();
   }
   async function duplicateWeek() {
     const days = weekDays(cursor); let count = 0;
-    for (const dk of days) { const list = await Tasks.forDate(dk); for (const t of list) { if (t.kind === 'routine') continue; await Tasks.duplicate({ ...t, date: Jalali.addDays(dk, 7) }); count++; } }
+    for (const dk of days) { const list = await Tasks.forDate(dk); for (const t of list) { await Tasks.duplicate({ ...t, date: Jalali.addDays(dk, 7) }); count++; } }
     UI.toast('success', `${I18n.t('duplicatedToast')} (${I18n.num(count)})`);
   }
   return { render, goto: (k) => { cursor = k; Router.go('week'); } };
@@ -4769,13 +4748,16 @@ const Month = (() => {
     monthTasks.forEach(t => { if (t.kind !== 'weekly' && tasksByDay[t.date]) tasksByDay[t.date].push(t); });
     dayKeys.forEach(dk => tasksByDay[dk].sort(Tasks.sortFn));
     const weekly = monthTasks.filter(t => t.kind === 'weekly');
-    const routines = (await DB.all('tasks')).filter(t => t.kind === 'routine');
+    // Habits count toward a day's progress the same way they do on Today
+    // (they used to be counted here as kind:'routine' tasks + day.routineState).
+    const habits = (await DB.all('habits')).filter(h => h.status !== 'archived');
+    const hMaps = await Habits.allRecordsMaps();
     const xpByDay = {}; (await DB.range('xpLog', 'date', lo, hi)).forEach(r => { xpByDay[r.date] = (xpByDay[r.date] || 0) + (r.amount || 0); });
 
     const wrap = el('.col.gap-6');
     wrap.appendChild(header());
-    wrap.appendChild(grid(dayKeys, lead, dayRecs, tasksByDay, xpByDay, routines));
-    wrap.appendChild(stats(dayKeys, dayRecs, tasksByDay, xpByDay, weekly, routines));
+    wrap.appendChild(grid(dayKeys, lead, dayRecs, tasksByDay, xpByDay, habits, hMaps));
+    wrap.appendChild(stats(dayKeys, dayRecs, tasksByDay, xpByDay, weekly, habits, hMaps));
     return wrap;
   }
   function header() {
@@ -4797,7 +4779,12 @@ const Month = (() => {
       ]),
     ]);
   }
-  function grid(dayKeys, lead, dayRecs, tasksByDay, xpByDay, routines) {
+  /** Habits scheduled for a day, and how many of them were done. */
+  function habitDay(habits, hMaps, dk) {
+    const due = habits.filter(h => (h.createdKey || '') <= dk && Habits.isScheduled(h, dk));
+    return { due: due.length, done: due.filter(h => Habits.isComplete(h, (hMaps[h.id] || {})[dk])).length };
+  }
+  function grid(dayKeys, lead, dayRecs, tasksByDay, xpByDay, habits, hMaps) {
     const pref = Prefs.get('weekStart') || 0;
     const wdRow = el('.month-wdrow');
     for (let i = 0; i < 7; i++) wdRow.appendChild(el('.month-wd', { text: Jalali.weekdays[I18n.get()][(pref + i) % 7] }));
@@ -4806,11 +4793,9 @@ const Month = (() => {
     const todayK = Jalali.todayKey();
     dayKeys.forEach(dk => {
       const j = Jalali.parseKey(dk), rec = dayRecs[dk], list = tasksByDay[dk];
-      // Routines count toward the day too — keeps Month in sync with Today.
-      const rApp = routines.filter(r => Today.routineApplies(r, dk));
-      const rDone = rApp.filter(r => rec && rec.routineState && rec.routineState[r.id] && rec.routineState[r.id].done).length;
-      const done = list.filter(t => t.completed).length + rDone;
-      const total = list.length + rApp.length;
+      const hd = habitDay(habits, hMaps, dk);
+      const done = list.filter(t => t.completed).length + hd.done;
+      const total = list.length + hd.due;
       const pct = total ? Math.round(done / total * 100) : 0;
       const cell = el('.mday' + (dk === todayK ? '.is-today' : '') + (rec && rec.closed ? '.is-closed' : ''), { role: 'button', tabindex: 0,
         onclick: () => Today.goto(dk), onkeydown: (e) => { if (e.key === 'Enter') Today.goto(dk); } });
@@ -4837,14 +4822,12 @@ const Month = (() => {
     });
     return el('.card.pad', {}, [ wdRow, g ]);
   }
-  function stats(dayKeys, dayRecs, tasksByDay, xpByDay, weekly, routines) {
+  function stats(dayKeys, dayRecs, tasksByDay, xpByDay, weekly, habits, hMaps) {
     const todayK = Jalali.todayKey();
     let done = 0, total = 0, focusSec = 0;
     dayKeys.forEach(dk => { const l = tasksByDay[dk]; total += l.length; done += l.filter(t => t.completed).length; focusSec += l.reduce((a, t) => a + (t.actualSec || 0), 0);
-      // Routines: only past/today days count, or future scheduling would drown the completion %.
-      if (dk <= todayK) { const rec = dayRecs[dk], rApp = routines.filter(r => Today.routineApplies(r, dk));
-        total += rApp.length;
-        done += rApp.filter(r => rec && rec.routineState && rec.routineState[r.id] && rec.routineState[r.id].done).length; } });
+      // Habits: only past/today days count, or future scheduling would drown the completion %.
+      if (dk <= todayK) { const hd = habitDay(habits, hMaps, dk); total += hd.due; done += hd.done; } });
     total += weekly.length; done += weekly.filter(t => t.completed).length;
     focusSec += weekly.reduce((a, t) => a + (t.actualSec || 0), 0);
     const pct = total ? Math.round(done / total * 100) : 0;
@@ -5502,21 +5485,25 @@ const HabitsView = (() => {
 
   async function render(params) { if (params && params.id) return detail(params.id); return list(); }
 
-  function todayControl(h, map, onChange) {
-    const key = Jalali.todayKey(), r = map[key];
+  /* `key` defaults to today so every existing caller is unaffected; the Today
+     page passes the day it is showing, which is what lets habits be ticked for
+     a past day. `readonly` guards future days — a tick there is ignored by the
+     streak walk but would still show up in History. */
+  function todayControl(h, map, onChange, key = Jalali.todayKey(), readonly = false) {
+    const r = map[key];
     if (h.target > 1) {
       const val = el('.hc-val', { text: `${I18n.num((r && r.value) || 0)}/${I18n.num(h.target)}` });
       return el('.habit-count', {}, [
-        el('button.counter-btn', { text: '−', onclick: async (e) => { e.stopPropagation(); await Habits.increment(h, key, map, -1); onChange(); } }),
+        el('button.counter-btn', { text: '−', disabled: readonly, onclick: async (e) => { e.stopPropagation(); await Habits.increment(h, key, map, -1); onChange(); } }),
         val,
-        el('button.counter-btn', { style: Habits.isComplete(h, map[key]) ? { background: h.color, color: '#fff' } : {}, text: '+', onclick: async (e) => { e.stopPropagation(); await Habits.increment(h, key, map, 1, e.currentTarget); onChange(); } }),
+        el('button.counter-btn', { disabled: readonly, style: Habits.isComplete(h, map[key]) ? { background: h.color, color: '#fff' } : {}, text: '+', onclick: async (e) => { e.stopPropagation(); await Habits.increment(h, key, map, 1, e.currentTarget); onChange(); } }),
       ]);
     }
     const done = Habits.isComplete(h, r);
-    return el('.habit-check' + (done ? '.on' : ''), { style: done ? { background: h.color, borderColor: h.color } : {}, html: done ? icon('check') : '', role: 'checkbox', 'aria-checked': String(done), tabindex: 0,
-      onclick: async (e) => { e.stopPropagation(); await Habits.toggle(h, key, map, e.currentTarget); onChange(); }, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } } });
+    return el('.habit-check' + (done ? '.on' : ''), { style: done ? { background: h.color, borderColor: h.color } : {}, html: done ? icon('check') : '', role: 'checkbox', 'aria-checked': String(done), tabindex: readonly ? -1 : 0,
+      onclick: async (e) => { e.stopPropagation(); if (readonly) return; await Habits.toggle(h, key, map, e.currentTarget); onChange(); }, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } } });
   }
-  function row(h, map) {
+  function row(h, map, key = Jalali.todayKey(), readonly = false) {
     const st = Habits.stats(h, map);
     const wrap = el('.habit-row');
     wrap.appendChild(el('.habit-ic', { style: { background: `color-mix(in srgb, ${h.color} 16%, transparent)` }, text: h.icon || '🎯' }));
@@ -5530,7 +5517,7 @@ const HabitsView = (() => {
       ]),
     ]));
     wrap.appendChild(weekStrip(h, map));
-    wrap.appendChild(todayControl(h, map, () => refresh()));
+    wrap.appendChild(todayControl(h, map, () => refresh(), key, readonly));
     return wrap;
   }
   /** Last 7 days as clickable dots — quick backfill without opening the detail page. */
@@ -8294,7 +8281,7 @@ const Insights = (() => {
     const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
     const goals = await DB.all('goals');
     const activeGoalIds = new Set(goals.filter(g => g.status === 'active').map(g => g.id));
-    const open = (await DB.all('tasks')).filter(t => !t.completed && t.kind !== 'routine' && t.date && t.date <= todayK);
+    const open = (await DB.all('tasks')).filter(t => !t.completed && t.date && t.date <= todayK);
 
     return open.map(t => {
       let score = 0; const why = [];
@@ -8318,7 +8305,7 @@ const Insights = (() => {
   async function overdue() {
     const todayK = Jalali.todayKey();
     return (await DB.all('tasks'))
-      .filter(t => !t.completed && t.kind !== 'routine' && t.date && t.date < todayK)
+      .filter(t => !t.completed && t.date && t.date < todayK)
       .sort((a, b) => a.date.localeCompare(b.date));
   }
 
@@ -8352,7 +8339,7 @@ const Insights = (() => {
     const tasks = await DB.all('tasks');
     const rate = (keys) => {
       const set = new Set(keys);
-      const inSet = tasks.filter(t => t.date && set.has(t.date) && t.kind !== 'routine');
+      const inSet = tasks.filter(t => t.date && set.has(t.date));
       return inSet.length ? Math.round(inSet.filter(t => t.completed).length / inSet.length * 100) : null;
     };
     const now = rate(thisWeek), prev = rate(lastWeek);
@@ -8718,6 +8705,57 @@ function registerRoutes() {
 }
 
 /* ---------------------------------------------------------------------------
+   16b. One-off migration: routines -> habits
+   ------------------------------------------------------------------------- */
+/* Recurring work used to exist twice: as a Habit (streaks, heatmap, skip,
+   freeze, its own records store) and as a Task with kind:'routine' (per-day
+   booleans on day.routineState, date:null, so Stats/Reviews/History never saw
+   it). Habits win; this moves the routines across once and gets out of the way.
+
+   Safety: an automatic backup first, soft deletes only, day.routineState left
+   untouched, and a kv flag so it can never run twice. */
+const MIGRATION_KEY = 'migration.routines2habits';
+
+async function migrateRoutinesToHabits() {
+  if (await DB.kvGet(MIGRATION_KEY)) return;
+  const routines = (await DB.all('tasks')).filter(t => t.kind === 'routine');
+  if (!routines.length) { await DB.kvSet(MIGRATION_KEY, { at: Date.now(), moved: 0 }); return; }
+
+  await DB.backup('preMigration');
+
+  const records = [];
+  const days = await DB.all('days');
+  for (const r of routines) {
+    const rep = r.repeat || {};
+    const weeklyDays = rep.type === 'weekly' && (rep.days || []).length ? rep.days : null;
+    const habit = Habits.make({
+      title: r.title, description: r.description || '', notes: r.notes || '',
+      color: r.color || '#7C5CFC', icon: '🎯',
+      type: weeklyDays ? 'custom' : rep.type === 'monthly' ? 'monthly' : 'daily',
+      targetDays: weeklyDays || [0, 1, 2, 3, 4, 5, 6],
+      target: 1, unit: '',
+    });
+    // Habits.units() walks forward from createdKey — get this wrong and every
+    // migrated streak silently reads as zero.
+    habit.createdKey = r.createdAt ? Jalali.keyFromDate(new Date(r.createdAt)) : Jalali.todayKey();
+    habit.migratedFromTaskId = r.id;
+    await DB.put('habits', habit);
+
+    for (const d of days) {
+      const st = (d.routineState || {})[r.id];
+      if (st && st.done) records.push({ habitId: habit.id, date: d.date, done: true, value: 1, skipped: false });
+    }
+    await DB.softDelete('tasks', r.id);
+  }
+  // Written directly, never through Habits.toggle — that awards XP, and these
+  // completions were already credited to xpLog when they happened.
+  if (records.length) await DB.bulkPut('habitRecords', records);
+
+  await DB.kvSet(MIGRATION_KEY, { at: Date.now(), moved: routines.length, records: records.length });
+  UI.toast('info', I18n.t('routinesMigrated').replace('{n}', I18n.num(routines.length)));
+}
+
+/* ---------------------------------------------------------------------------
    17. Bootstrap
    ------------------------------------------------------------------------- */
 async function boot() {
@@ -8728,6 +8766,7 @@ async function boot() {
   try {
     await DB.open();
     await DB.repair();
+    await migrateRoutinesToHabits();
   } catch (e) {
     console.error('DB init failed', e);
     UI.toast('error', 'Database unavailable — running in memory only.');
