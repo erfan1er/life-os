@@ -674,6 +674,22 @@ ul, ol { list-style: none; }
 .overlay.sheet .modal { max-width: none; width: 100%; border-radius: var(--r-xl) var(--r-xl) 0 0;
   max-height: 86vh; display: flex; flex-direction: column; animation: none; }
 .overlay.sheet .modal-body { max-height: none; flex: 1; }
+/* More-sheet tiles. Self-contained classes — reusing .nav-item here meant
+   inheriting the sidebar's icon-rail media query, which hid every label. */
+.sheet-group { font-size: var(--fs-xs); font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-3); padding: var(--s-3) 2px var(--s-1); }
+.sheet-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); }
+.sheet-item { display: flex; align-items: center; gap: var(--s-2); min-height: 46px; padding: 8px 10px;
+  border-radius: var(--r-md); background: var(--surface-2); border: 1px solid transparent;
+  color: var(--text-2); font-size: var(--fs-sm); font-weight: 600; text-align: start;
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease); }
+.sheet-item .si-ic { width: 26px; height: 26px; flex: none; display: grid; place-items: center; color: var(--text-3); }
+.sheet-item .si-ic svg.ic { width: 19px; height: 19px; }
+.sheet-item .si-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-item:active { transform: scale(.97); }
+.sheet-item.active { background: var(--brand-soft); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 30%, transparent); }
+.sheet-item.active .si-ic { color: var(--brand); }
+[data-theme="dark"] .sheet-item.active, [data-theme="dark"] .sheet-item.active .si-ic { color: #C9BCFF; }
 
 /* ---- Command palette ----------------------------------------------------- */
 #cmd { position: fixed; inset: 0; z-index: var(--z-cmd); display: none; padding-top: 12vh;
@@ -1303,11 +1319,15 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 
 /* ---- Responsive ---------------------------------------------------------- */
 @media (max-width: 1024px) {
+  /* Scoped to .sidebar on purpose: these collapse the sidebar into an icon
+     rail, and unscoped they hid the label of every .nav-item anywhere on the
+     page — which is what blanked the More sheet when it reused these classes. */
   :root { --sidebar-w: 60px; }
   .shell { grid-template-columns: 60px 1fr; }
-  .sb-title, .sb-sub, .nav-label, .sb-section-label, .sb-foot-txt, .search-txt, .sb-search .kbd { display: none; }
-  .nav-item { justify-content: center; }
-  .nav-badge { display: none; }
+  .sidebar .sb-title, .sidebar .sb-sub, .sidebar .nav-label, .sidebar .sb-section-label,
+  .sidebar .sb-foot-txt, .sidebar .search-txt, .sidebar .sb-search .kbd { display: none; }
+  .sidebar .nav-item { justify-content: center; }
+  .sidebar .nav-badge { display: none; }
 }
 @media (max-width: 720px) {
   /* Overrides the -base values only, so Prefs.fontSize still scales on top of
@@ -2913,29 +2933,36 @@ const Layout = (() => {
     }
   }
 
-  /** Everything not on the bottom bar, grouped exactly as the sidebar groups it. */
+  /** Everything not on the bottom bar, grouped exactly as the sidebar groups it.
+      Deliberately its OWN classes (.sheet-*) rather than the sidebar's
+      .nav-item/.nav-label: those carry responsive rules that collapse them to
+      an icon rail below 1024px, which blanked every label in here. */
   async function moreSheet() {
-    const body = el('.col.gap-4');
+    const body = el('.col.gap-2');
+    const closeSheet = () => $('.overlay.sheet')?.querySelector('.modal-head .tb-btn')?.click();
+    const cur = Router.current();
+    const tile = (label, ic, fn, active) => el('button.sheet-item' + (active ? '.active' : ''),
+      { type: 'button', onclick: () => { closeSheet(); fn(); } }, [
+        el('.si-ic', { html: icon(ic) }), el('span.si-label', { text: label }),
+      ]);
+
     NAV.forEach(group => {
       const items = group.items.filter(it => !TABS.includes(it.name));
       if (!items.length) return;
-      const list = el('.col');
-      items.forEach(it => list.appendChild(el('.nav-item.clickable', { dataset: { nav: it.name },
-        onclick: () => { closeSheet(); Router.go(it.name); } }, [
-        el('.nav-ic', { html: icon(it.icon) }), el('.nav-label.grow', { text: I18n.t('nav_' + it.name) }),
-      ])));
-      body.append(el('.sb-section-label', { text: I18n.t(group.section) }), list);
+      const grid = el('.sheet-grid');
+      items.forEach(it => grid.appendChild(tile(I18n.t('nav_' + it.name), it.icon, () => Router.go(it.name), cur === it.name)));
+      body.append(el('.sheet-group', { text: I18n.t(group.section) }), grid);
     });
-    const sysList = el('.col');
-    [
-      ['settings', 'settings', () => Router.go('settings')],
-      ['search', 'search', () => Command.open()],
-      ['theme', Theme.resolved() === 'dark' ? 'sun' : 'moon', cycleTheme],
-    ].forEach(([key, ic, fn]) => sysList.appendChild(el('.nav-item.clickable', { onclick: () => { closeSheet(); fn(); } }, [
-      el('.nav-ic', { html: icon(ic) }), el('.nav-label.grow', { text: I18n.t(key === 'settings' ? 'nav_settings' : key) }),
-    ])));
-    body.append(el('.sb-section-label', { text: I18n.t('sec_system') }), sysList);
-    const closeSheet = () => $('.overlay.sheet')?.querySelector('.modal-head .tb-btn')?.click();
+
+    const sys = el('.sheet-grid');
+    sys.append(
+      tile(I18n.t('nav_settings'), 'settings', () => Router.go('settings'), cur === 'settings'),
+      tile(I18n.t('search'), 'search', () => Command.open()),
+      tile(I18n.t('theme'), Theme.resolved() === 'dark' ? 'sun' : 'moon', cycleTheme),
+      tile(I18n.t('backup'), 'download', async () => { await DB.backup('manual'); UI.toast('success', I18n.t('saved')); }),
+    );
+    body.append(el('.sheet-group', { text: I18n.t('sec_system') }), sys);
+
     await UI.modal({ title: I18n.t('more'), body, sheet: true });
   }
 
