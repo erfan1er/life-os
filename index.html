@@ -655,6 +655,15 @@ ul, ol { list-style: none; }
   background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 5%, transparent), transparent); }
 .modal-body { padding: var(--s-5); max-height: 70vh; overflow-y: auto; }
 .modal-foot { padding: var(--s-3) var(--s-5); display: flex; gap: var(--s-3); justify-content: flex-end; border-top: 1px solid var(--border); background: var(--surface); }
+/* Bottom-sheet variant of .modal (UI.modal({sheet:true})) — thumb-reachable.
+   No slide-up keyframe on purpose: this engine leaves such an animation parked
+   on its first frame (same failure the drawer transition hit), which left the
+   sheet sitting one full height BELOW the viewport. The overlay fade is enough
+   feedback, and position never depends on an animation completing. */
+.overlay.sheet { place-items: end stretch; padding: 0; }
+.overlay.sheet .modal { max-width: none; width: 100%; border-radius: var(--r-xl) var(--r-xl) 0 0;
+  max-height: 86vh; display: flex; flex-direction: column; animation: none; }
+.overlay.sheet .modal-body { max-height: none; flex: 1; }
 
 /* ---- Command palette ----------------------------------------------------- */
 #cmd { position: fixed; inset: 0; z-index: var(--z-cmd); display: none; padding-top: 12vh;
@@ -1296,9 +1305,9 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
   :root { --fs-3xl-base: 22px; --fs-2xl-base: 19px; --fs-xl-base: 17px; }
   .shell { grid-template-columns: 1fr; }
   .main { grid-column: 1; }
-  /* Bottom padding is just FAB clearance now (the botnav is a flow item that
-     takes its own space below the view, not an overlay). */
-  .view { padding: var(--s-3) var(--s-3) 80px; }
+  /* The botnav is a flow item that takes its own space below the view, and the
+     FAB that needed extra clearance is gone — no magic bottom padding left. */
+  .view { padding: var(--s-3) var(--s-3) var(--s-5); }
   .card.pad { padding: var(--s-5); }
   .topbar { padding-inline: var(--s-3); height: calc(50px + env(safe-area-inset-top, 0px)); }
 
@@ -1355,24 +1364,26 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
     /* No safe-area reserve here: the viewport is no longer viewport-fit=cover,
        so the .main column already ends exactly at the top of the system
        gesture bar. Adding the inset again would re-create the empty band. */
-    height: 66px;
+    height: 56px;
     background: var(--bg-elev);
     border-top: 1px solid var(--border); align-items: stretch; justify-content: space-around;
   }
-  .bn-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    color: var(--text-3); font-size: 11px; font-weight: 600; position: relative; min-height: 44px; }
+  .bn-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    color: var(--text-3); font-size: 10px; font-weight: 600; position: relative; min-height: 44px;
+    border-radius: var(--r-md); transition: color var(--dur-1) var(--ease); }
   .bn-item.active { color: var(--brand); }
-  .bn-item .bn-ic { width: 28px; height: 28px; display: grid; place-items: center; }
-  .sb-collapse-btn { display: none; }  /* drawer is always full on mobile */
-  .bn-fab { position: absolute; inset-inline-end: 18px; bottom: 82px; z-index: var(--z-nav);
-    width: 56px; height: 56px; border-radius: 18px; color: #fff; display: grid; place-items: center;
-    background: linear-gradient(135deg, var(--brand), var(--brand-700));
-    box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 8px 24px color-mix(in srgb, var(--brand) 45%, transparent);
-    transition: transform var(--dur-1) var(--ease), box-shadow var(--dur-2) var(--ease); }
-  .bn-fab:active { transform: scale(.9); }
-  .bn-item { border-radius: var(--r-md); transition: color var(--dur-1) var(--ease); }
   .bn-item:active { transform: scale(.93); }
-  .bn-item.active .bn-ic { background: var(--brand-soft); border-radius: 10px; padding: 2px; box-sizing: content-box; }
+  .bn-item .bn-ic { width: 24px; height: 24px; display: grid; place-items: center; }
+  .bn-item.active .bn-ic { background: var(--brand-soft); border-radius: 8px; padding: 2px; box-sizing: content-box; }
+  /* Centre add button. The old floating FAB sat above the bar on its own
+     magic offset (bottom: 82px vs the bar's 66px vs .view's 80px padding) —
+     three numbers that had to move together. This is just a bar item. */
+  .bn-add .bn-plus { width: 38px; height: 38px; border-radius: var(--r-lg); display: grid; place-items: center; color: #fff;
+    background: linear-gradient(135deg, var(--brand), var(--brand-700));
+    box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 4px 12px color-mix(in srgb, var(--brand) 40%, transparent); }
+  .bn-add .bn-plus svg.ic { width: 21px; height: 21px; }
+  .bn-add:active .bn-plus { transform: scale(.9); }
+  .sb-collapse-btn { display: none; }  /* drawer is always full on mobile */
 
   /* Touch targets — ONLY for controls a finger actually drives. The old block
      bumped ~10 selectors, which made the phone bigger than the desktop instead
@@ -1386,7 +1397,6 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
   .jdp-day, .tp-col button, .seg button, .pick button, .btn.sm, .btn.add.sm { min-height: 36px; }
   .modal-foot .btn { min-height: 44px; }
 }
-@media (min-width: 721px) { .bn-fab { display: none; } }
 </style>
 </head>
 <body>
@@ -2713,10 +2723,13 @@ const UI = (() => {
     $('#toasts').appendChild(node);
     setTimeout(() => { node.classList.add('out'); setTimeout(() => node.remove(), 220); }, 3200);
   }
-  function modal({ title, body, actions = [], width }) {
+  /** `sheet: true` bottom-anchors the same dialog (mobile navigation, pickers).
+      It's a flag rather than a second component so Esc, scrim-click, focus and
+      the close promise stay in one place. */
+  function modal({ title, body, actions = [], width, sheet }) {
     return new Promise((resolve) => {
-      const ov = el('.overlay', { onclick: (e) => { if (e.target === ov) close(null); } });
-      const box = el('.modal', width ? { style: { maxWidth: width } } : {});
+      const ov = el('.overlay' + (sheet ? '.sheet' : ''), { onclick: (e) => { if (e.target === ov) close(null); } });
+      const box = el('.modal', width && !sheet ? { style: { maxWidth: width } } : {});
       const head = el('.modal-head', {}, [
         el('.h4.grow', { text: title }),
         el('button.tb-btn', { html: icon('x'), 'aria-label': I18n.t('close'), onclick: () => close(null) }),
@@ -2804,7 +2817,10 @@ const Layout = (() => {
       { name: 'history', icon: 'history' }, { name: 'stats', icon: 'stats' },
     ]},
   ];
-  const BOTTOM = ['dashboard', 'today', 'goals', 'habits'];
+  /* Bottom bar: three pages, a central add button, and "more". Everything not
+     in TABS is one tap away in the More sheet, which is built from NAV so it
+     can never drift out of sync with the sidebar. */
+  const TABS = ['dashboard', 'today', 'habits'];
 
   function build() {
     const app = $('#app');
@@ -2868,18 +2884,22 @@ const Layout = (() => {
        dvh-sized column it always sits flush on the real bottom edge. Hidden
        on desktop via `.botnav{display:none}` so it costs nothing there. */
     const bn = el('.botnav');
-    BOTTOM.forEach(n => bn.appendChild(el('.bn-item', { dataset: { nav: n }, onclick: () => Router.go(n) }, [
+    const tabItem = (n) => el('.bn-item', { dataset: { nav: n }, onclick: () => Router.go(n) }, [
       el('.bn-ic', { html: icon(navIconFor(n)) }), el('span', { text: I18n.t('nav_' + n) }),
-    ])));
-    bn.appendChild(el('.bn-item', { dataset: { nav: 'settings' }, onclick: () => Router.go('settings') }, [
-      el('.bn-ic', { html: icon('settings') }), el('span', { text: I18n.t('nav_settings') }),
-    ]));
+    ]);
+    bn.append(
+      tabItem('dashboard'), tabItem('today'),
+      // Centre add button — replaces the floating FAB, which needed its own
+      // magic offset above the bar and drifted on iOS.
+      el('.bn-item.bn-add', { 'aria-label': I18n.t('addTask'), onclick: addForRoute }, [
+        el('.bn-plus', { html: icon('plus') }),
+      ]),
+      tabItem('habits'),
+      el('.bn-item.bn-more', { dataset: { nav: '__more' }, onclick: moreSheet }, [
+        el('.bn-ic', { html: icon('menu') }), el('span', { text: I18n.t('more') }),
+      ]),
+    );
     main.appendChild(bn);
-    // FAB = quick-add a task for today. Absolute inside .main (which is
-    // position:relative + dvh-sized) so it tracks the same bottom edge as the
-    // flow botnav instead of drifting like a viewport-fixed element on iOS.
-    main.appendChild(el('.bn-fab', { 'aria-label': I18n.t('newTask'), html: icon('plus'),
-      onclick: () => TaskUI.openEditor(null, () => { if (Router.current() === 'today' || Router.current() === 'dashboard') Router.render(); }, { kind: 'daily', date: Jalali.todayKey() }) }));
 
     app.classList.add('ready');
     app.setAttribute('aria-hidden', 'false');
@@ -2889,6 +2909,47 @@ const Layout = (() => {
   }
 
   function navIconFor(name) { for (const g of NAV) for (const it of g.items) if (it.name === name) return it.icon; return 'settings'; }
+
+  /** The centre "+" adds whatever the page you're on is about. */
+  function addForRoute() {
+    const back = () => Router.render();
+    switch (Router.current()) {
+      case 'habits': return HabitsView.openEditor(null, back);
+      case 'goals': case 'roadmap': return GoalsView.openEditor(null, back);
+      case 'notes': return NotesView.createNote();
+      case 'finance': return FinanceView.txEditor(null, back);
+      default: return TaskUI.openEditor(null, () => {
+        const r = Router.current();
+        if (r === 'today' || r === 'dashboard' || r === 'week' || r === 'month') Router.render();
+      }, { kind: 'daily', date: Jalali.todayKey() });
+    }
+  }
+
+  /** Everything not on the bottom bar, grouped exactly as the sidebar groups it. */
+  async function moreSheet() {
+    const body = el('.col.gap-4');
+    NAV.forEach(group => {
+      const items = group.items.filter(it => !TABS.includes(it.name));
+      if (!items.length) return;
+      const list = el('.col');
+      items.forEach(it => list.appendChild(el('.nav-item.clickable', { dataset: { nav: it.name },
+        onclick: () => { closeSheet(); Router.go(it.name); } }, [
+        el('.nav-ic', { html: icon(it.icon) }), el('.nav-label.grow', { text: I18n.t('nav_' + it.name) }),
+      ])));
+      body.append(el('.sb-section-label', { text: I18n.t(group.section) }), list);
+    });
+    const sysList = el('.col');
+    [
+      ['settings', 'settings', () => Router.go('settings')],
+      ['search', 'search', () => Command.open()],
+      ['theme', Theme.resolved() === 'dark' ? 'sun' : 'moon', cycleTheme],
+    ].forEach(([key, ic, fn]) => sysList.appendChild(el('.nav-item.clickable', { onclick: () => { closeSheet(); fn(); } }, [
+      el('.nav-ic', { html: icon(ic) }), el('.nav-label.grow', { text: I18n.t(key === 'settings' ? 'nav_settings' : key) }),
+    ])));
+    body.append(el('.sb-section-label', { text: I18n.t('sec_system') }), sysList);
+    const closeSheet = () => $('.overlay.sheet')?.querySelector('.modal-head .tb-btn')?.click();
+    await UI.modal({ title: I18n.t('more'), body, sheet: true });
+  }
 
   /** Bell + unread badge; clicking toggles the notification panel. */
   function notifBell() {
@@ -2948,7 +3009,10 @@ const Layout = (() => {
   }
   function setActive(name) {
     $$('.nav-item[data-nav]').forEach(n => n.classList.toggle('active', n.dataset.nav === name));
-    $$('.bn-item[data-nav]').forEach(n => n.classList.toggle('active', n.dataset.nav === name));
+    // "More" lights up for every page that isn't one of the three tabs, so the
+    // bar always shows where you are.
+    $$('.bn-item[data-nav]').forEach(n => n.classList.toggle('active',
+      n.dataset.nav === '__more' ? !TABS.includes(name) : n.dataset.nav === name));
   }
   function setTitle(txt) { const t = $('#tbTitle'); if (t) t.textContent = txt; document.title = txt + ' · ' + I18n.t('appName'); }
   function toggleCollapse() { const c = !Prefs.get('sidebarCollapsed'); Prefs.set('sidebarCollapsed', c);
@@ -6021,7 +6085,7 @@ const NotesView = (() => {
   }
   /** Set selection without rendering, then navigate (used from other modules). */
   const open = (id) => { selectedId = id; sessionSnap = false; Router.go('notes'); };
-  return { render, select, open };
+  return { render, select, open, createNote };
 })();
 
 /* ---------------------------------------------------------------------------
