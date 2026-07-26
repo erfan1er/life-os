@@ -2,11 +2,21 @@
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0" />
-<meta name="theme-color" content="#7C5CFC" />
+<!-- NO viewport-fit=cover on purpose. With cover, the installed PWA's layout
+     viewport is stretched under the OS status bar AND the gesture/navigation
+     bar, so every bottom-anchored surface had to reserve
+     env(safe-area-inset-bottom) — which showed up as a dead band under the
+     bottom nav. Without cover the browser insets the viewport to the real
+     content area for us: no overlap at the top, no gap at the bottom, and all
+     env(safe-area-inset-*) resolve to 0. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+<!-- Kept in sync with the resolved theme by Theme.apply() (dark: #16181F). -->
+<meta name="theme-color" content="#16181F" />
 <meta name="description" content="Personal Life OS — planner, habits, goals, finance, notes and more." />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<!-- "default", not "black-translucent": translucent is the iOS equivalent of
+     viewport-fit=cover (content draws under the status bar). -->
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="mobile-web-app-capable" content="yes" />
 <title>Life OS</title>
 <!-- Logomark: an "L+O" monogram in the app's own line-icon stroke style (round
@@ -285,11 +295,11 @@ ul, ol { list-style: none; }
    would let .view grow past the viewport instead of scrolling inside it. */
 .main { grid-column: 2; height: 100%; display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
 .topbar {
-  /* box-sizing:border-box + the safe-area padding folded into height: an
-     installed PWA (display:standalone) has no browser chrome pushing content
-     below the OS status bar, so without this the clock/battery icons sit on
-     top of our own topbar buttons. viewport-fit=cover (already in the meta
-     tag) is what makes env(safe-area-inset-*) resolve to a real value here. */
+  /* The status-bar clearance now comes from the viewport itself (no
+     viewport-fit=cover → the installed PWA's page starts below the OS status
+     bar), so env(safe-area-inset-top) is 0 and this calc collapses to 62px.
+     It stays as a guard for any platform that still reports a real inset;
+     box-sizing:border-box keeps the padding inside the stated height. */
   box-sizing: border-box;
   height: calc(62px + env(safe-area-inset-top, 0px));
   padding-top: env(safe-area-inset-top, 0px);
@@ -1269,11 +1279,11 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
     position: fixed; inset-block: 0; z-index: calc(var(--z-nav) + 2);
     width: min(84vw, 300px); --sidebar-w: min(84vw, 300px);
     box-shadow: var(--shadow-lg);
-    /* Same status-bar overlap the topbar had: the drawer spans the real
-       screen edge (inset-block:0), so its own header/footer need the same
-       safe-area clearance — this was missed when only .topbar got fixed. */
+    /* env(safe-area-inset-*) is 0 now that the viewport is not fit=cover (the
+       browser insets the whole page past the system bars). Kept as a harmless
+       guard in case a platform still reports real insets — it must never add
+       visible padding when they are 0. */
     padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
     /* No left/right transition: this engine leaves such transitions stuck at the
        start value, so the drawer would never actually move. Instant is reliable.
        (The scrim still fades via its own opacity transition.) */
@@ -1307,7 +1317,10 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
        note. flex:none so it keeps its height; the .view above it takes the
        remaining space and scrolls internally. */
     display: flex; flex: none; position: static;
-    height: calc(66px + env(safe-area-inset-bottom, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px);
+    /* No safe-area reserve here: the viewport is no longer viewport-fit=cover,
+       so the .main column already ends exactly at the top of the system
+       gesture bar. Adding the inset again would re-create the empty band. */
+    height: 66px;
     background: var(--bg-elev);
     border-top: 1px solid var(--border); align-items: stretch; justify-content: space-around;
   }
@@ -1316,7 +1329,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
   .bn-item.active { color: var(--brand); }
   .bn-item .bn-ic { width: 28px; height: 28px; display: grid; place-items: center; }
   .sb-collapse-btn { display: none; }  /* drawer is always full on mobile */
-  .bn-fab { position: absolute; inset-inline-end: 18px; bottom: calc(82px + env(safe-area-inset-bottom, 0px)); z-index: var(--z-nav);
+  .bn-fab { position: absolute; inset-inline-end: 18px; bottom: 82px; z-index: var(--z-nav);
     width: 56px; height: 56px; border-radius: 18px; color: #fff; display: grid; place-items: center;
     background: linear-gradient(135deg, var(--brand), var(--brand-700));
     box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 8px 24px color-mix(in srgb, var(--brand) 45%, transparent);
@@ -2420,7 +2433,10 @@ const Theme = (() => {
     document.documentElement.style.setProperty('--brand-600', shade(accent, -8));
     document.documentElement.style.setProperty('--brand-700', shade(accent, -18));
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', r === 'dark' ? '#16181F' : accent);
+    // Matches --bg-elev (the topbar), not the accent: without viewport-fit=cover
+    // the OS status bar is painted with this colour, so it has to blend into the
+    // topbar instead of showing a purple stripe above it.
+    if (meta) meta.setAttribute('content', r === 'dark' ? '#16181F' : '#FFFFFF');
     // Root % has no effect — every --fs-* token is fixed px. Scale the tokens.
     const fscale = (Prefs.get('fontSize') || 100) / 100;
     Object.entries({ xs: 12, sm: 13, md: 15, lg: 17, xl: 20, '2xl': 26, '3xl': 34 })
@@ -3776,7 +3792,10 @@ const PWA = (() => {
       name: Prefs.get('plannerName') || 'Life OS', short_name: 'Life OS',
       description: 'Personal Life Operating System', start_url: '.', scope: '.',
       display: 'standalone', orientation: 'portrait-primary',
-      background_color: '#0E0F14', theme_color: Prefs.get('accent') || '#7C5CFC',
+      // theme_color paints the installed shell's system bars (they are opaque
+      // now that the viewport is not fit=cover) — match the topbar, not the
+      // accent, so there is no coloured stripe above the app.
+      background_color: '#0E0F14', theme_color: '#16181F',
       lang: I18n.get(), dir: I18n.dir(),
       icons: [
         { src: iconDataURL(192), sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
