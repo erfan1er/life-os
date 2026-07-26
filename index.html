@@ -432,6 +432,8 @@ ul, ol { list-style: none; }
 .btn.sm { padding: 5px var(--s-3); font-size: var(--fs-sm); border-radius: var(--r-sm); }
 .btn.lg { padding: 11px var(--s-5); font-size: var(--fs-md); border-radius: var(--r-lg); }
 .btn.block { width: 100%; }
+/* Disclosure trigger (Views.advanced): chevron flips when the fold is open. */
+.btn.ghost.open svg.ic { transform: rotate(180deg); }
 
 /* Add-action pill — the "add task / add item" CTA, used app-wide */
 .btn.add, .btn.add:hover { border-color: transparent; }
@@ -3102,7 +3104,79 @@ const Views = (() => {
       actions ? el('.row.gap-2', {}, actions) : null,
     ]);
   }
-  return { emptyState, loadingState, errorState, comingSoon, pageHeader };
+
+  /* --- Form primitives ----------------------------------------------------
+     These were copy-pasted into six view modules with small drifts (only one
+     copy supported `hint`). One definition here, everyone reuses it. */
+
+  /** Labelled form row. An empty label renders no .label — otherwise a bare
+      control (an emoji picker, say) gets a phantom gap above it. */
+  function field(label, control, hint) {
+    return el('.field', {}, [
+      label ? el('.label', { text: label }) : null,
+      control,
+      hint ? el('.hint', { text: hint }) : null,
+    ]);
+  }
+
+  /** Card section: title, optional action buttons, then the body. */
+  function section(title, actions, children) {
+    if (Array.isArray(actions) && children === undefined) { children = actions; actions = null; }
+    return el('.card.pad.col.gap-4', {}, [
+      actions
+        ? el('.row.between.gap-3', {}, [ el('.h4.grow', { text: title }), el('.row.gap-2', {}, actions) ])
+        : el('.h4', { text: title }),
+      ...(Array.isArray(children) ? children : [children]),
+    ]);
+  }
+
+  /** Label + control on one line, for settings-style lists. */
+  function rowItem(label, control, hint) {
+    return el('.row.between.gap-4', { style: { padding: '6px 0' } }, [
+      el('.col', {}, [ el('.label', { text: label }), hint ? el('.hint', { text: hint }) : null ]),
+      control,
+    ]);
+  }
+
+  /** Progressive disclosure. Returns [button, wrap] to spread into a form:
+      the essentials stay visible, the rest folds away. `openIf` starts it
+      expanded when the record already has data hidden behind the fold —
+      otherwise editing an existing item would look like data loss. */
+  function advanced(children, { openIf = false, labelKey = 'moreOptions' } = {}) {
+    const wrap = el('.col.gap-4' + (openIf ? '' : '.hidden'), {}, children.filter(Boolean));
+    const btn = el('button.btn.sm.ghost' + (openIf ? '.open' : ''), { type: 'button', style: { alignSelf: 'start' },
+      html: icon('chevD') + '<span>' + I18n.t(labelKey) + '</span>',
+      onclick: () => { wrap.classList.toggle('hidden'); btn.classList.toggle('open'); } });
+    return [btn, wrap];
+  }
+
+  /** Button group (the .pick pattern). `multi` toggles instead of replacing.
+      options: [value, label] pairs. onChange receives the new value(s). */
+  function picker(options, value, onChange, { multi = false, fontSize } = {}) {
+    const row = el('.pick');
+    const sel = multi ? new Set(value || []) : value;
+    options.forEach(([val, label]) => {
+      const on = multi ? sel.has(val) : val === value;
+      row.appendChild(el('button' + (on ? '.on' : ''), { type: 'button', text: label,
+        style: fontSize ? { fontSize } : null,
+        onclick: (e) => {
+          const b = e.currentTarget;
+          if (multi) { sel.has(val) ? sel.delete(val) : sel.add(val); b.classList.toggle('on'); onChange([...sel]); }
+          else { $$('button', row).forEach(x => x.classList.remove('on')); b.classList.add('on'); onChange(val); }
+        } }));
+    });
+    return row;
+  }
+
+  /** Colour swatch row. */
+  function swatches(colors, value, onChange) {
+    const row = el('.swatches');
+    colors.forEach(c => row.appendChild(el('.swatch' + (value === c ? '.on' : ''), { style: { background: c },
+      onclick: (e) => { $$('.swatch', row).forEach(s => s.classList.remove('on')); e.currentTarget.classList.add('on'); onChange(c); } })));
+    return row;
+  }
+
+  return { emptyState, loadingState, errorState, comingSoon, pageHeader, field, section, rowItem, advanced, picker, swatches };
 })();
 
 /* ---------------------------------------------------------------------------
@@ -3401,15 +3475,7 @@ const Dashboard = (() => {
 const Settings = (() => {
   const ACCENTS = ['#7C5CFC', '#5B8DEF', '#22C55E', '#F59E0B', '#EF4444', '#EC4899', '#14B8A6', '#8B5CF6'];
 
-  function section(title, children) {
-    return el('.card.pad.col.gap-4', {}, [ el('.h4', { text: title }), ...children ]);
-  }
-  function rowItem(label, control, hint) {
-    return el('.row.between.gap-4', { style: { padding: '6px 0' } }, [
-      el('.col', {}, [ el('.label', { text: label }), hint ? el('.hint', { text: hint }) : null ]),
-      control,
-    ]);
-  }
+  const section = Views.section, rowItem = Views.rowItem;
   function toggle(checked, onChange) {
     const input = el('input', { type: 'checkbox', onchange: (e) => onChange(e.target.checked) });
     input.checked = checked;
@@ -4042,7 +4108,7 @@ const TaskUI = (() => {
     if (h) return `${I18n.num(h)}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     return `${I18n.num(m)}:${String(s).padStart(2, '0')}`;
   }
-  const field = (label, control) => el('.field', {}, [el('.label', { text: label }), control]);
+  const field = Views.field;
 
   /** Render one task as a DOM node. onChange() is called after mutations. */
   function node(t, { onChange, readonly } = {}) {
@@ -4366,7 +4432,7 @@ const Today = (() => {
       field(I18n.t('intention'), intent),
     ]);
   }
-  const field = (label, control) => el('.field', {}, [el('.label', { text: label }), control]);
+  const field = Views.field;
 
   function taskSection(kind, title, icName, list, key, readonly) {
     const sec = el('.card.pad.tsec');
@@ -5162,7 +5228,7 @@ const GoalsView = (() => {
   }
 
   // ---- Editor ----
-  const field = (label, control) => el('.field', {}, [el('.label', { text: label }), control]);
+  const field = Views.field;
   async function openEditor(existing, onSaved, defaults = {}) {
     const isNew = !existing;
     const g = existing ? deepClone(existing) : Goals.make(defaults);
@@ -5190,18 +5256,14 @@ const GoalsView = (() => {
     const notesInput = el('textarea.textarea', { style: { minHeight: '52px' }, oninput: (e) => g.notes = e.target.value }, g.notes || '');
 
     // Essentials up top; everything optional folds away so the modal stays approachable.
-    const moreWrap = el('.col.gap-4.hidden', {}, [
+    const [moreBtn, moreWrap] = Views.advanced([
       field(I18n.t('vision'), visionInput),
       field(I18n.t('whyLabel'), whyInput),
       field(I18n.t('description'), descInput),
       field(I18n.t('reward'), rewardInput),
       el('.grid.g-2', {}, [field(I18n.t('progressMode'), modeSel), manualWrap]),
       field(I18n.t('goalNotes'), notesInput),
-    ]);
-    if (g.vision || g.why || g.description || g.reward || g.notes || g.progressMode === 'manual') moreWrap.classList.remove('hidden');
-    const moreBtn = el('button.btn.sm.ghost', { type: 'button', style: { alignSelf: 'start' },
-      html: icon('chevD') + '<span>' + I18n.t('moreOptions') + '</span>',
-      onclick: () => moreWrap.classList.toggle('hidden') });
+    ], { openIf: !!(g.vision || g.why || g.description || g.reward || g.notes || g.progressMode === 'manual') });
     const form = el('.col.gap-4', {}, [
       field(I18n.t('title'), titleInput),
       field('', emojiRow),
@@ -5421,7 +5483,7 @@ const Habits = (() => {
 const HabitsView = (() => {
   let filter = 'active';
   const refresh = () => Router.render();
-  const field = (label, control) => el('.field', {}, [el('.label', { text: label }), control]);
+  const field = Views.field;
   const LV = [0, 30, 50, 72, 100];
 
   async function render(params) { if (params && params.id) return detail(params.id); return list(); }
@@ -6086,7 +6148,7 @@ const FinanceView = (() => {
   let tab = 'overview', cur = (() => { const j = Jalali.fromDate(); return { jy: j.jy, jm: j.jm }; })();
   let fType = 'all', fAcct = 'all', fCat = 'all', q = '';
   const refresh = () => Router.render();
-  const field = (l, c) => el('.field', {}, [el('.label', { text: l }), c]);
+  const field = Views.field;
 
   /** Money input: live 3-digit grouping, accepts Persian/Arabic/Latin digits
       (type=number silently rejected Persian keyboards — THE cause of "empty"
@@ -6803,8 +6865,7 @@ const Health = (() => {
 const HealthView = (() => {
   let days = 30;
   const refresh = () => Router.render();
-  const field = (label, control, hint) => el('.field', {}, [el('.label', { text: label }), control,
-    hint ? el('.hint', { text: hint }) : null]);
+  const field = Views.field;
 
   /** Numeric input that accepts Persian/Arabic digits (type=number silently
       rejects them — same failure the finance amounts had). */
