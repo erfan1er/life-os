@@ -791,8 +791,37 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .cl-row.on .cl-text { text-decoration: line-through; color: var(--text-3); }
 .cl-text { flex: 1; font-size: var(--fs-sm); }
 
-/* Check-in */
-.checkin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s-4); }
+/* Check-in — collapses to one line of chips once the day is logged, so it
+   stops owning a third of the day view for the rest of the day. */
+.checkin .ci-head { display: flex; align-items: center; gap: var(--s-2); cursor: pointer; min-height: 32px; }
+.checkin .ci-sun { color: var(--orange); display: grid; place-items: center; flex: none; }
+.checkin .ci-sun svg.ic { width: 18px; height: 18px; }
+.checkin .ci-title { font-size: var(--fs-md); font-weight: 600; flex: none; }
+.checkin .ci-summary { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; overflow: hidden; justify-content: flex-end; }
+.checkin.ci-open .ci-summary { display: none; }
+.checkin.ci-open .ci-title { flex: 1; }
+.ci-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
+  background: var(--surface-2); font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); flex: none; white-space: nowrap; }
+.ci-chip svg.ic { width: 12px; height: 12px; color: var(--text-3); }
+.ci-chip.ci-emo { font-size: 15px; padding: 0 4px; background: none; }
+.ci-chip.ci-clip { min-width: 0; max-width: 130px; }
+.ci-chip.ci-clip span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.checkin .ci-chev { color: var(--text-3); display: grid; place-items: center; flex: none;
+  transition: transform var(--dur-2) var(--ease); }
+.checkin .ci-chev svg.ic { width: 16px; height: 16px; }
+.checkin.ci-open .ci-chev { transform: rotate(180deg); }
+.checkin .ci-body { display: none; }
+.checkin.ci-open .ci-body { display: flex; flex-direction: column; gap: 6px;
+  padding-top: var(--s-2); border-top: 1px solid var(--border); }
+.ci-row { display: flex; align-items: center; gap: var(--s-2); min-height: 34px; }
+.ci-row .ci-lbl { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); font-weight: 600;
+  color: var(--text-2); flex: none; min-width: 86px; }
+.ci-row .ci-lbl svg.ic { width: 15px; height: 15px; color: var(--text-3); }
+.ci-row .ci-ctl { flex: 1; min-width: 0; display: flex; justify-content: flex-end; }
+.ci-row .ci-intent { max-width: 100%; }
+.ci-times { display: flex; gap: 6px; width: 100%; max-width: 240px; }
+.ci-times > * { flex: 1; min-width: 0; }
+.checkin .stars button { font-size: 19px; }
 .pick { display: flex; gap: 5px; flex-wrap: wrap; }
 .pick button { padding: 5px 11px; border-radius: var(--r-full); background: var(--surface-2); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); border: 1px solid var(--border); transition: all var(--dur-1) var(--ease); }
 .pick button:hover { background: var(--surface-3); border-color: var(--border-strong); transform: translateY(-1px); }
@@ -1823,7 +1852,7 @@ const I18n = (() => {
       openGoalHint: 'برای جزئیات کلیک کن', roadmapDragHint: 'برای جابه‌جایی نقشه، آن را با موس بگیر و بکش؛ روی هر گره کلیک کن تا هدف باز شود.',
       moreOptions: 'جزئیات بیشتر (اختیاری)', taskDate: 'تاریخ',
       routinesMigrated: '{n} روتین به عادت تبدیل شد (یک نسخهٔ پشتیبان قبل از تغییر ذخیره شد)',
-      noMatchFilter: 'چیزی با این فیلتر پیدا نشد', clearFilter: 'حذف فیلتر',
+      noMatchFilter: 'چیزی با این فیلتر پیدا نشد', clearFilter: 'حذف فیلتر', checkinEmpty: 'هنوز ثبت نشده',
       firstRunTitle: 'از کجا شروع کنیم؟', firstRunSub: 'سه کار کوچک تا برنامه برای تو کار کند.',
       firstRunTask: 'اولین کار را بنویس', firstRunHabit: 'یک عادت از الگوها بردار', firstRunSettings: 'اسم و تنظیمات را ببین',
       dismiss: 'باشه، فهمیدم',
@@ -2111,7 +2140,7 @@ const I18n = (() => {
       openGoalHint: 'Click for details', roadmapDragHint: 'Drag the map with your mouse to pan; click any node to open the goal.',
       moreOptions: 'More details (optional)', taskDate: 'Date',
       routinesMigrated: '{n} routines became habits (a backup was saved first)',
-      noMatchFilter: 'Nothing matches this filter', clearFilter: 'Clear filter',
+      noMatchFilter: 'Nothing matches this filter', clearFilter: 'Clear filter', checkinEmpty: 'Not logged yet',
       firstRunTitle: 'Where to start', firstRunSub: 'Three small things and the app starts working for you.',
       firstRunTask: 'Write your first task', firstRunHabit: 'Pick a habit from the templates', firstRunSettings: 'Check your name and settings',
       dismiss: 'Got it',
@@ -4475,49 +4504,107 @@ const Today = (() => {
     ]);
   }
 
+  const MOODS = [['awful', '😩'], ['bad', '😕'], ['ok', '😐'], ['good', '🙂'], ['great', '😄']];
+  // Collapsed vs expanded survives a re-render but not a reload: the default is
+  // "open until you've logged something", so the card asks once and then gets
+  // out of the way. null = follow that default.
+  let checkinOpen = null;
+
+  /* The check-in used to be a 2-column grid of six labelled boxes whose controls
+     were all different heights (two full-width time pickers, a star row, an
+     emoji row, a pill row, a counter) — ragged and, once filled in, still
+     occupying a third of the day view for the rest of the day.
+
+     Now: mood is the one thing on show, everything else is a tidy list of
+     label/control rows, and the whole thing collapses to a single line of
+     chips once there's anything to summarise. Own .ci-* classes — no borrowed
+     ones that carry someone else's media queries. */
   function checkinCard(day) {
     const c = day.checkin || (day.checkin = {});
-    const save = () => saveDay(day);
-    // Sleep / wake
-    const sleepIn = TimePicker.input({ value: c.sleepTime, onChange: (v) => { c.sleepTime = v || ''; save(); } });
-    const wakeIn = TimePicker.input({ value: c.wakeTime, onChange: (v) => { c.wakeTime = v || ''; save(); } });
-    // Sleep quality stars
-    const stars = el('.stars');
-    for (let i = 1; i <= 5; i++) stars.appendChild(el('button' + ((c.sleepQuality || 0) >= i ? '.on' : ''), { type: 'button', text: '★',
-      onclick: () => { c.sleepQuality = i; save(); $$('button', stars).forEach((b, bi) => b.classList.toggle('on', bi < i)); } }));
-    // Mood
-    const moods = [['awful', '😩'], ['bad', '😕'], ['ok', '😐'], ['good', '🙂'], ['great', '😄']];
+    const logged = () => !!(c.mood || c.energy || c.sleepQuality || c.water || c.sleepTime || c.wakeTime || c.intention);
+    const card = el('.card.pad.col.gap-3.checkin');
+    const save = () => { saveDay(day); paintSummary(); };
+
+    /* Collapsed line: what you logged, at a glance. */
+    const summary = el('.ci-summary');
+    const chip = (ic, txt, cls = '') => el('.ci-chip' + cls, {}, [ic ? el('span', { html: icon(ic) }) : null, el('span', { text: txt })]);
+    function paintSummary() {
+      summary.innerHTML = '';
+      if (c.mood) summary.appendChild(el('.ci-chip.ci-emo', { text: (MOODS.find(m => m[0] === c.mood) || [])[1] || '' }));
+      if (c.energy) summary.appendChild(chip('bolt', `${I18n.num(c.energy)}/${I18n.num(5)}`));
+      if (c.sleepQuality) summary.appendChild(chip('moon', '★'.repeat(c.sleepQuality)));
+      if (c.water) summary.appendChild(chip('drop', `${I18n.num(c.water)}/${I18n.num(c.waterTarget || 8)}`));
+      if (c.intention) summary.appendChild(chip('goals', c.intention, '.ci-clip'));
+      if (!summary.children.length) summary.appendChild(el('.ci-chip.dim', { text: I18n.t('checkinEmpty') }));
+    }
+    paintSummary();
+
+    /* Mood — the primary daily interaction, so it stays full width at 44px. */
     const moodPick = el('.mood-pick');
-    moods.forEach(([val, emo]) => moodPick.appendChild(el('button' + (c.mood === val ? '.on' : ''), { type: 'button', text: emo, title: I18n.t('mood_' + val),
-      onclick: (e) => { c.mood = val; save(); $$('button', moodPick).forEach(b => b.classList.remove('on')); e.currentTarget.classList.add('on'); } })));
-    // Energy 1-5
+    MOODS.forEach(([val, emo]) => moodPick.appendChild(el('button' + (c.mood === val ? '.on' : ''), { type: 'button', text: emo,
+      title: I18n.t('mood_' + val), 'aria-label': I18n.t('mood_' + val), 'aria-pressed': String(c.mood === val),
+      onclick: (e) => {
+        c.mood = val; save();
+        $$('button', moodPick).forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); });
+        e.currentTarget.classList.add('on'); e.currentTarget.setAttribute('aria-pressed', 'true');
+        navigator.vibrate?.(8);   // one light tick on the day's confirmation, nowhere else
+      } })));
+
     const energyPick = el('.energy-pick');
     for (let i = 1; i <= 5; i++) energyPick.appendChild(el('button' + (c.energy === i ? '.on' : ''), { type: 'button', text: I18n.num(i),
-      onclick: (e) => { c.energy = i; save(); $$('button', energyPick).forEach(b => b.classList.remove('on')); e.currentTarget.classList.add('on'); } }));
-    // Weight is logged on the Health page only (kept out of the daily check-in).
-    // Water counter
+      'aria-label': `${I18n.t('energy')} ${i}`, 'aria-pressed': String(c.energy === i),
+      onclick: (e) => { c.energy = i; save();
+        $$('button', energyPick).forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); });
+        e.currentTarget.classList.add('on'); e.currentTarget.setAttribute('aria-pressed', 'true'); } }));
+
+    const stars = el('.stars');
+    for (let i = 1; i <= 5; i++) stars.appendChild(el('button' + ((c.sleepQuality || 0) >= i ? '.on' : ''), { type: 'button', text: '★',
+      'aria-label': `${I18n.t('sleepQuality')} ${i}`,
+      onclick: () => { c.sleepQuality = i; save(); $$('button', stars).forEach((b, bi) => b.classList.toggle('on', bi < i)); } }));
+
+    const sleepIn = TimePicker.input({ value: c.sleepTime, onChange: (v) => { c.sleepTime = v || ''; save(); } });
+    const wakeIn = TimePicker.input({ value: c.wakeTime, onChange: (v) => { c.wakeTime = v || ''; save(); } });
+
     const target = c.waterTarget || 8;
     const waterVal = el('.val', { text: `${I18n.num(c.water || 0)}/${I18n.num(target)}` });
+    const setWater = (n) => { c.water = Math.max(0, n); waterVal.textContent = `${I18n.num(c.water)}/${I18n.num(target)}`; save(); };
     const water = el('.counter', {}, [
-      el('button.counter-btn', { text: '−', onclick: () => { c.water = Math.max(0, (c.water || 0) - 1); waterVal.textContent = `${I18n.num(c.water)}/${I18n.num(target)}`; save(); } }),
-      el('span', { html: icon('drop'), style: { color: 'var(--blue)' } }), waterVal,
-      el('button.counter-btn', { text: '+', onclick: () => { c.water = (c.water || 0) + 1; waterVal.textContent = `${I18n.num(c.water)}/${I18n.num(target)}`; save(); } }),
+      el('button.counter-btn', { text: '−', 'aria-label': '−', onclick: () => setWater((c.water || 0) - 1) }),
+      waterVal,
+      el('button.counter-btn', { text: '+', 'aria-label': '+', onclick: () => setWater((c.water || 0) + 1) }),
     ]);
-    // Intention
-    const intent = el('input.input', { value: c.intention || '', placeholder: I18n.t('intentionPh'), oninput: debounce((e) => { c.intention = e.target.value; save(); }, 400) });
 
-    const grid = el('.checkin-grid', {}, [
-      field(I18n.t('sleepTime'), sleepIn), field(I18n.t('wakeTime'), wakeIn),
-      field(I18n.t('sleepQuality'), stars), field(I18n.t('mood'), moodPick),
-      field(I18n.t('energy'), energyPick),
-      field(I18n.t('waterTarget'), water),
+    // Visible label, not a placeholder standing in for one.
+    const intent = el('input.input.ci-intent', { value: c.intention || '', placeholder: I18n.t('intentionPh'),
+      'aria-label': I18n.t('intention'), oninput: debounce((e) => { c.intention = e.target.value; save(); }, 400) });
+
+    const row = (ic, label, control) => el('.ci-row', {}, [
+      el('.ci-lbl', {}, [el('span', { html: icon(ic) }), el('span', { text: label })]),
+      el('.ci-ctl', {}, [control]),
     ]);
-    return el('.card.pad.col.gap-4', {}, [
-      el('.row.gap-3', {}, [el('span.stat-ic', { style: { background: 'color-mix(in srgb,var(--orange) 15%,transparent)', color: 'var(--orange)' }, html: icon('sun') }),
-        el('.h4', { text: I18n.t('morningCheckin') })]),
-      grid,
-      field(I18n.t('intention'), intent),
+
+    const body = el('.ci-body', {}, [
+      moodPick,
+      row('bolt', I18n.t('energy'), energyPick),
+      row('moon', I18n.t('sleepQuality'), stars),
+      row('clock', I18n.t('sleepTime'), el('.ci-times', {}, [sleepIn, wakeIn])),
+      row('drop', I18n.t('waterTarget'), water),
+      row('goals', I18n.t('intention'), intent),
     ]);
+
+    const chev = el('span.ci-chev', { html: icon('chevD') });
+    const toggle = () => { checkinOpen = !card.classList.contains('ci-open'); card.classList.toggle('ci-open', checkinOpen); };
+    const head = el('.ci-head', { role: 'button', tabindex: 0, 'aria-label': I18n.t('morningCheckin'),
+      onclick: toggle, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } } }, [
+      el('span.ci-sun', { html: icon('sun') }),
+      el('.ci-title', { text: I18n.t('morningCheckin') }),
+      summary,
+      chev,
+    ]);
+
+    card.append(head, body);
+    if (checkinOpen === null ? !logged() : checkinOpen) card.classList.add('ci-open');
+    return card;
   }
   const field = Views.field;
 
