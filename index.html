@@ -9,7 +9,11 @@
      bottom nav. Without cover the browser insets the viewport to the real
      content area for us: no overlap at the top, no gap at the bottom, and all
      env(safe-area-inset-*) resolve to 0. -->
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+<!-- maximum-scale=1 + user-scalable=no: this is an installed app, not a page.
+     Pinching it zoomed the whole UI (bottom bar included) and left the layout
+     stranded off-centre. The app has its own font-size setting for legibility,
+     and the roadmap canvas does its own pan/zoom. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <!-- Kept in sync with the resolved theme by Theme.apply() (dark: #16181F). -->
 <meta name="theme-color" content="#16181F" />
 <meta name="description" content="Personal Life OS — planner, habits, goals, finance, notes and more." />
@@ -108,9 +112,12 @@
      Theme.apply() used to overwrite each --fs-* directly with an inline style,
      which silently beat the responsive overrides in the @media block — that is
      why phone font sizes never actually changed. One multiplier fixes it. */
+     These are the DESKTOP sizes; the ≤720px block shrinks the bases one step
+     for the phone, where a 14px body reads fine at arm's length but 15px on a
+     monitor does not. Density (spacing/radii) stays compact on both. */
   --fs-scale: 1;
-  --fs-xs-base: 11px; --fs-sm-base: 12px; --fs-md-base: 14px; --fs-lg-base: 16px;
-  --fs-xl-base: 18px; --fs-2xl-base: 22px; --fs-3xl-base: 26px;
+  --fs-xs-base: 12px; --fs-sm-base: 13px; --fs-md-base: 15px; --fs-lg-base: 17px;
+  --fs-xl-base: 20px; --fs-2xl-base: 24px; --fs-3xl-base: 30px;
   --fs-xs:  calc(var(--fs-xs-base)  * var(--fs-scale));
   --fs-sm:  calc(var(--fs-sm-base)  * var(--fs-scale));
   --fs-md:  calc(var(--fs-md-base)  * var(--fs-scale));
@@ -177,6 +184,11 @@
    the fallback for browsers that don't understand dvh (an unsupported unit
    invalidates just that one declaration, not the whole rule). */
 html, body { height: 100%; height: 100dvh; }
+/* touch-action kills the double-tap-to-zoom gesture (the viewport meta only
+   stops pinching), and text-size-adjust stops the browser inflating text on
+   its own. Elements that need raw gestures — the roadmap canvas — set their
+   own touch-action and still win. */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   font-family: var(--font);
   font-size: var(--fs-md);
@@ -1300,7 +1312,8 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 @media (max-width: 720px) {
   /* Overrides the -base values only, so Prefs.fontSize still scales on top of
      them (--fs-scale is applied by the calc() in :root). */
-  :root { --fs-3xl-base: 22px; --fs-2xl-base: 19px; --fs-xl-base: 17px; }
+  :root { --fs-xs-base: 11px; --fs-sm-base: 12px; --fs-md-base: 14px; --fs-lg-base: 16px;
+    --fs-xl-base: 18px; --fs-2xl-base: 21px; --fs-3xl-base: 24px; }
   .shell { grid-template-columns: 1fr; }
   .main { grid-column: 1; }
   /* The botnav is a flow item that takes its own space below the view, and the
@@ -8829,6 +8842,11 @@ async function boot() {
   Router.init();
   Shortcuts.init();
   PWA.init();
+
+  // iOS Safari ignores user-scalable=no, so pinch has to be refused directly.
+  // (Harmless elsewhere — no other engine fires these gesture events.)
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(ev =>
+    document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
 
   // Live systems
   window.addEventListener('online', () => { Layout.refreshNet(); UI.toast('success', I18n.t('online')); });
