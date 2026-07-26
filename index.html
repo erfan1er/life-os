@@ -1790,6 +1790,10 @@ const I18n = (() => {
       openGoalHint: 'برای جزئیات کلیک کن', roadmapDragHint: 'برای جابه‌جایی نقشه، آن را با موس بگیر و بکش؛ روی هر گره کلیک کن تا هدف باز شود.',
       moreOptions: 'جزئیات بیشتر (اختیاری)', taskDate: 'تاریخ',
       routinesMigrated: '{n} روتین به عادت تبدیل شد (یک نسخهٔ پشتیبان قبل از تغییر ذخیره شد)',
+      noMatchFilter: 'چیزی با این فیلتر پیدا نشد', clearFilter: 'حذف فیلتر',
+      firstRunTitle: 'از کجا شروع کنیم؟', firstRunSub: 'سه کار کوچک تا برنامه برای تو کار کند.',
+      firstRunTask: 'اولین کار را بنویس', firstRunHabit: 'یک عادت از الگوها بردار', firstRunSettings: 'اسم و تنظیمات را ببین',
+      dismiss: 'باشه، فهمیدم',
       addSubGoalPh: 'زیرهدف جدید — بنویس و Enter بزن…', resetView: 'بازنشانی نما',
       customGoal: 'هدف دلخواه خودت', customGoalHint: 'با هر عنوان و جزئیاتی که بخواهی، از صفر بساز',
       templatesHint: 'این‌ها فقط پیشنهاد برای شروع سریع‌اند — هر هدف دلخواهی می‌توانی بسازی.',
@@ -2074,6 +2078,10 @@ const I18n = (() => {
       openGoalHint: 'Click for details', roadmapDragHint: 'Drag the map with your mouse to pan; click any node to open the goal.',
       moreOptions: 'More details (optional)', taskDate: 'Date',
       routinesMigrated: '{n} routines became habits (a backup was saved first)',
+      noMatchFilter: 'Nothing matches this filter', clearFilter: 'Clear filter',
+      firstRunTitle: 'Where to start', firstRunSub: 'Three small things and the app starts working for you.',
+      firstRunTask: 'Write your first task', firstRunHabit: 'Pick a habit from the templates', firstRunSettings: 'Check your name and settings',
+      dismiss: 'Got it',
       addSubGoalPh: 'New sub-goal — type and press Enter…', resetView: 'Reset view',
       customGoal: 'Your own goal', customGoalHint: 'Start from scratch with any title and details',
       templatesHint: 'These are just quick-start suggestions — you can create any goal you want.',
@@ -3247,6 +3255,28 @@ const Dashboard = (() => {
       ]),
     ]);
     wrap.appendChild(hero);
+
+    /* First run: an empty dashboard used to say nothing about where to begin —
+       the Goals and Habits widgets are hidden when empty, so a new user saw
+       four zeros and no hint that those pages exist. Prefs.onboarded and the
+       welcome strings had been sitting unused since the first version. */
+    if (!Prefs.get('onboarded') && !counts.tasks && !counts.habits && !counts.goals) {
+      const card = el('.card.pad.col.gap-3');
+      const step = (labelKey, ic, fn) => el('.dash-goal.clickable', { onclick: fn }, [
+        el('.w-ic', { html: icon(ic) }), el('.dg-t.grow', { text: I18n.t(labelKey) }), el('.dim', { html: icon('chevL') }),
+      ]);
+      const done = async () => { Prefs.set('onboarded', true); Router.render(); };
+      card.append(
+        el('.row.between.gap-3', {}, [
+          el('.col', {}, [el('.h4', { text: I18n.t('firstRunTitle') }), el('.small.dim', { text: I18n.t('firstRunSub') })]),
+          el('button.btn.sm.ghost', { text: I18n.t('dismiss'), onclick: done }),
+        ]),
+        step('firstRunTask', 'today', () => TaskUI.openEditor(null, done, { kind: 'daily', date: todayKey })),
+        step('firstRunHabit', 'habits', () => { Prefs.set('onboarded', true); Router.go('habits'); }),
+        step('firstRunSettings', 'settings', () => { Prefs.set('onboarded', true); Router.go('settings'); }),
+      );
+      wrap.appendChild(card);
+    }
 
     /* Today progress + XP level */
     wrap.appendChild(el('.grid.g-2', {}, [
@@ -4996,7 +5026,10 @@ const GoalsView = (() => {
     if (!all.length) { wrap.appendChild(templatesCard()); wrap.appendChild(el('.card.pad', {}, [Views.emptyState('goals', I18n.t('noGoals'), I18n.t('noGoalsHint'),
       el('button.btn.add', { html: icon('plus') + '<span>' + I18n.t('addFirstGoal') + '</span>', onclick: () => openEditor(null, refresh) }))])); return wrap; }
     const rootList = Goals.roots(all).filter(g => visible(g) || Goals.descendants(g.id, all).some(visible));
-    if (!rootList.length) { wrap.appendChild(el('.card.pad', {}, [Views.emptyState('goals', I18n.t('noData'), '')])); return wrap; }
+    // Empty because of the status filter, not because there's nothing — offer
+    // the way out instead of a dead end.
+    if (!rootList.length) { wrap.appendChild(el('.card.pad', {}, [Views.emptyState('goals', I18n.t('noMatchFilter'), '',
+      el('button.btn.sm.outline', { text: I18n.t('clearFilter'), onclick: () => { filter = 'all'; refresh(); } }))])); return wrap; }
 
     const memo = {};   // shared across this render so subtrees are walked once
     const grid = el('.goals-grid');
@@ -5589,7 +5622,8 @@ const HabitsView = (() => {
         el('button.btn.add', { html: icon('plus') + '<span>' + I18n.t('addFirstHabit') + '</span>', onclick: () => openEditor(null, refresh) }))]));
       return wrap;
     }
-    if (!habits.length) { wrap.appendChild(el('.card.pad', {}, [Views.emptyState('habits', I18n.t('noData'), '')])); return wrap; }
+    if (!habits.length) { wrap.appendChild(el('.card.pad', {}, [Views.emptyState('habits', I18n.t('noMatchFilter'), '',
+      el('button.btn.sm.outline', { text: I18n.t('clearFilter'), onclick: () => { filter = 'active'; refresh(); } }))])); return wrap; }
     const maps = await Habits.allRecordsMaps();
     // Summary strip: today done/scheduled, best active streak, completions this week.
     if (filter === 'active') {
@@ -6388,7 +6422,14 @@ const FinanceView = (() => {
     if (fCat !== 'all') list = list.filter(t => t.category === fCat);
     if (q) { const s = q.toLowerCase(); list = list.filter(t => (t.description || '').toLowerCase().includes(s) || String(t.amount).includes(s)); }
     list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || ((b.updatedAt || 0) - (a.updatedAt || 0)));
-    if (!list.length) { box.appendChild(el('.card.pad', {}, [Views.emptyState('finance', I18n.t('noTx'), I18n.t('noTxHint'))])); return box; }
+    if (!list.length) {
+      const filtered = fType !== 'all' || fAcct !== 'all' || fCat !== 'all' || !!q;
+      box.appendChild(el('.card.pad', {}, [Views.emptyState('finance',
+        filtered ? I18n.t('noMatchFilter') : I18n.t('noTx'), filtered ? '' : I18n.t('noTxHint'),
+        filtered ? el('button.btn.sm.outline', { text: I18n.t('clearFilter'),
+          onclick: () => { fType = 'all'; fAcct = 'all'; fCat = 'all'; q = ''; refresh(); } }) : null)]));
+      return box;
+    }
     // filtered-set summary strip — totals for exactly what's on screen
     const ft = Finance.totals(list);
     box.appendChild(el('.card.pad.row.wrap.gap-4.tx-sumbar', {}, [
