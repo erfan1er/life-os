@@ -811,17 +811,32 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .checkin .ci-chev svg.ic { width: 16px; height: 16px; }
 .checkin.ci-open .ci-chev { transform: rotate(180deg); }
 .checkin .ci-body { display: none; }
-.checkin.ci-open .ci-body { display: flex; flex-direction: column; gap: 6px;
-  padding-top: var(--s-2); border-top: 1px solid var(--border); }
+/* Grid, not a stack: a stacked row on a 1000px card pinned its label to one
+   edge and its control to the other with ~700px of nothing between them. Cells
+   wrap to one column on a phone and sit side by side on a wide card, so label
+   and control always stay next to each other. */
+.checkin.ci-open .ci-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 4px var(--s-5); padding-top: var(--s-2); border-top: 1px solid var(--border); }
+.checkin .ci-full { grid-column: 1 / -1; }
 .ci-row { display: flex; align-items: center; gap: var(--s-2); min-height: 34px; }
 .ci-row .ci-lbl { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); font-weight: 600;
   color: var(--text-2); flex: none; min-width: 86px; }
 .ci-row .ci-lbl svg.ic { width: 15px; height: 15px; color: var(--text-3); }
 .ci-row .ci-ctl { flex: 1; min-width: 0; display: flex; justify-content: flex-end; }
 .ci-row .ci-intent { max-width: 100%; }
-.ci-times { display: flex; gap: 6px; width: 100%; max-width: 240px; }
+.ci-times { display: flex; gap: 6px; width: 100%; max-width: 200px; }
 .ci-times > * { flex: 1; min-width: 0; }
 .checkin .stars button { font-size: 19px; }
+.checkin .mood-pick { max-width: none; }
+.ci-prev { font-size: var(--fs-xs); color: var(--text-3); padding-top: 5px; }
+/* Water glasses — the whole button is the 32px target, the dot inside is 11px. */
+.ci-dots { display: flex; gap: 2px; }
+.ci-dots button { width: 26px; height: 32px; display: grid; place-items: center; border-radius: var(--r-sm); }
+.ci-dots button i { width: 11px; height: 11px; border-radius: 50%; background: var(--surface-3);
+  border: 1px solid var(--border-strong); transition: background var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); }
+.ci-dots button.on i { background: var(--blue); border-color: var(--blue); }
+.ci-dots button:hover i { transform: scale(1.25); }
+.ci-dots button:active i { transform: scale(.85); }
 .pick { display: flex; gap: 5px; flex-wrap: wrap; }
 .pick button { padding: 5px 11px; border-radius: var(--r-full); background: var(--surface-2); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); border: 1px solid var(--border); transition: all var(--dur-1) var(--ease); }
 .pick button:hover { background: var(--surface-3); border-color: var(--border-strong); transform: translateY(-1px); }
@@ -1369,6 +1384,10 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
      FAB that needed extra clearance is gone — no magic bottom padding left. */
   .view { padding: var(--s-3) var(--s-3) var(--s-5); }
   .card.pad { padding: var(--s-5); }
+  /* A phone header fits about three chips; more than that clipped mid-chip and
+     looked broken. Keep the two that change through the day (mood, water) plus
+     energy; sleep and the intention are morning-only and live inside. */
+  .checkin .ci-summary .ci-sleep, .checkin .ci-summary .ci-clip { display: none; }
   .topbar { padding-inline: var(--s-3); height: calc(50px + env(safe-area-inset-top, 0px)); }
 
   /* No sidebar on a phone at all — the bottom bar plus the More sheet cover
@@ -1853,6 +1872,7 @@ const I18n = (() => {
       moreOptions: 'جزئیات بیشتر (اختیاری)', taskDate: 'تاریخ',
       routinesMigrated: '{n} روتین به عادت تبدیل شد (یک نسخهٔ پشتیبان قبل از تغییر ذخیره شد)',
       noMatchFilter: 'چیزی با این فیلتر پیدا نشد', clearFilter: 'حذف فیلتر', checkinEmpty: 'هنوز ثبت نشده',
+      yesterdayWas: 'دیروز:',
       firstRunTitle: 'از کجا شروع کنیم؟', firstRunSub: 'سه کار کوچک تا برنامه برای تو کار کند.',
       firstRunTask: 'اولین کار را بنویس', firstRunHabit: 'یک عادت از الگوها بردار', firstRunSettings: 'اسم و تنظیمات را ببین',
       dismiss: 'باشه، فهمیدم',
@@ -2141,6 +2161,7 @@ const I18n = (() => {
       moreOptions: 'More details (optional)', taskDate: 'Date',
       routinesMigrated: '{n} routines became habits (a backup was saved first)',
       noMatchFilter: 'Nothing matches this filter', clearFilter: 'Clear filter', checkinEmpty: 'Not logged yet',
+      yesterdayWas: 'Yesterday:',
       firstRunTitle: 'Where to start', firstRunSub: 'Three small things and the app starts working for you.',
       firstRunTask: 'Write your first task', firstRunHabit: 'Pick a habit from the templates', firstRunSettings: 'Check your name and settings',
       dismiss: 'Got it',
@@ -4460,7 +4481,7 @@ const Today = (() => {
 
     const content = el('.col.gap-6');
     if (readonly) content.classList.add('locked');
-    content.appendChild(checkinCard(day));
+    content.appendChild(checkinCard(day, (await getDay(Jalali.addDays(key, -1))).checkin));
 
     const tasks = await Tasks.forDate(key);
     // Weekly tasks are week-scoped: show the whole week's list on every day of that week.
@@ -4519,7 +4540,7 @@ const Today = (() => {
      label/control rows, and the whole thing collapses to a single line of
      chips once there's anything to summarise. Own .ci-* classes — no borrowed
      ones that carry someone else's media queries. */
-  function checkinCard(day) {
+  function checkinCard(day, prevCheckin) {
     const c = day.checkin || (day.checkin = {});
     const logged = () => !!(c.mood || c.energy || c.sleepQuality || c.water || c.sleepTime || c.wakeTime || c.intention);
     const card = el('.card.pad.col.gap-3.checkin');
@@ -4532,7 +4553,7 @@ const Today = (() => {
       summary.innerHTML = '';
       if (c.mood) summary.appendChild(el('.ci-chip.ci-emo', { text: (MOODS.find(m => m[0] === c.mood) || [])[1] || '' }));
       if (c.energy) summary.appendChild(chip('bolt', `${I18n.num(c.energy)}/${I18n.num(5)}`));
-      if (c.sleepQuality) summary.appendChild(chip('moon', '★'.repeat(c.sleepQuality)));
+      if (c.sleepQuality) summary.appendChild(chip('moon', '★'.repeat(c.sleepQuality), '.ci-sleep'));
       if (c.water) summary.appendChild(chip('drop', `${I18n.num(c.water)}/${I18n.num(c.waterTarget || 8)}`));
       if (c.intention) summary.appendChild(chip('goals', c.intention, '.ci-clip'));
       if (!summary.children.length) summary.appendChild(el('.ci-chip.dim', { text: I18n.t('checkinEmpty') }));
@@ -4565,14 +4586,28 @@ const Today = (() => {
     const sleepIn = TimePicker.input({ value: c.sleepTime, onChange: (v) => { c.sleepTime = v || ''; save(); } });
     const wakeIn = TimePicker.input({ value: c.wakeTime, onChange: (v) => { c.wakeTime = v || ''; save(); } });
 
+    /* Water as a row of glasses instead of −/+: one tap sets the count (eight
+       taps to log eight glasses was the worst interaction on the card), and the
+       progress is readable without parsing "۳/۸". Tapping the current count
+       again steps back down. Falls back to the counter for unusual targets. */
     const target = c.waterTarget || 8;
-    const waterVal = el('.val', { text: `${I18n.num(c.water || 0)}/${I18n.num(target)}` });
-    const setWater = (n) => { c.water = Math.max(0, n); waterVal.textContent = `${I18n.num(c.water)}/${I18n.num(target)}`; save(); };
-    const water = el('.counter', {}, [
-      el('button.counter-btn', { text: '−', 'aria-label': '−', onclick: () => setWater((c.water || 0) - 1) }),
-      waterVal,
-      el('button.counter-btn', { text: '+', 'aria-label': '+', onclick: () => setWater((c.water || 0) + 1) }),
-    ]);
+    let water;
+    if (target <= 10) {
+      water = el('.ci-dots', { role: 'group', 'aria-label': I18n.t('waterTarget') });
+      const paint = () => $$('button', water).forEach((b, i) => b.classList.toggle('on', i < (c.water || 0)));
+      for (let i = 1; i <= target; i++) water.appendChild(el('button', { type: 'button',
+        'aria-label': `${I18n.t('waterTarget')} ${i}`,
+        onclick: () => { c.water = (c.water === i) ? i - 1 : i; paint(); save(); } }, [el('i')]));
+      paint();
+    } else {
+      const waterVal = el('.val', { text: `${I18n.num(c.water || 0)}/${I18n.num(target)}` });
+      const setWater = (n) => { c.water = Math.max(0, n); waterVal.textContent = `${I18n.num(c.water)}/${I18n.num(target)}`; save(); };
+      water = el('.counter', {}, [
+        el('button.counter-btn', { text: '−', 'aria-label': '−', onclick: () => setWater((c.water || 0) - 1) }),
+        waterVal,
+        el('button.counter-btn', { text: '+', 'aria-label': '+', onclick: () => setWater((c.water || 0) + 1) }),
+      ]);
+    }
 
     // Visible label, not a placeholder standing in for one.
     const intent = el('input.input.ci-intent', { value: c.intention || '', placeholder: I18n.t('intentionPh'),
@@ -4583,13 +4618,23 @@ const Today = (() => {
       el('.ci-ctl', {}, [control]),
     ]);
 
+    /* Yesterday, in one dim line — the point of logging a mood is the trend,
+       and until now nothing on this card showed one. */
+    const prev = prevCheckin || {};
+    const prevBits = [];
+    if (prev.mood) prevBits.push((MOODS.find(m => m[0] === prev.mood) || [])[1]);
+    if (prev.energy) prevBits.push(`${I18n.t('energy')} ${I18n.num(prev.energy)}`);
+    if (prev.sleepQuality) prevBits.push('★'.repeat(prev.sleepQuality));
+    const yesterday = prevBits.length
+      ? el('.ci-prev', { text: `${I18n.t('yesterdayWas')} ${prevBits.join(' · ')}` }) : null;
+
     const body = el('.ci-body', {}, [
-      moodPick,
+      el('.ci-full', {}, [moodPick, yesterday]),
       row('bolt', I18n.t('energy'), energyPick),
       row('moon', I18n.t('sleepQuality'), stars),
-      row('clock', I18n.t('sleepTime'), el('.ci-times', {}, [sleepIn, wakeIn])),
       row('drop', I18n.t('waterTarget'), water),
-      row('goals', I18n.t('intention'), intent),
+      row('clock', I18n.t('sleepTime'), el('.ci-times', {}, [sleepIn, wakeIn])),
+      el('.ci-full', {}, [row('goals', I18n.t('intention'), intent)]),
     ]);
 
     const chev = el('span.ci-chev', { html: icon('chevD') });
