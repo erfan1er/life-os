@@ -874,10 +874,6 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .closed-banner .cb-ic { color: var(--orange); }
 .locked { pointer-events: none; opacity: .55; filter: saturate(.55); user-select: none; }
 
-/* XP float */
-.xpfloat { position: fixed; z-index: var(--z-toast); pointer-events: none; font-weight: 800; font-family: var(--font-mono);
-  color: var(--brand); font-size: var(--fs-xl); text-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 40%, transparent); animation: xpUp 1.1s var(--ease) forwards; }
-@keyframes xpUp { 0% { opacity: 0; transform: translateY(8px) scale(.7); } 25% { opacity: 1; transform: translateY(-6px) scale(1.15); } 100% { opacity: 0; transform: translateY(-46px) scale(1); } }
 
 /* ---- Week & Month (Phase 2) ---------------------------------------------- */
 .week-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--s-3); align-items: start; }
@@ -931,7 +927,6 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .mday .mbar { height: 3px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
 .mday .mbar > span { display: block; height: 100%; background: var(--green); border-radius: 2px; }
 .mday .mbadge { position: absolute; top: 6px; inset-inline-end: 6px; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 5px; }
-.mday .mxp { font-size: 9px; font-weight: 700; color: var(--brand); }
 .mday .mtasks { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
 .mday .mtask { display: flex; align-items: center; gap: 4px; font-size: 10px; line-height: 1.4; color: var(--text-2); background: var(--surface-2); border-radius: 5px; padding: 1px 5px; min-width: 0; }
 .mday .mtask .mtt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -947,10 +942,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 /* Task card extras: inline note + auto-XP chip + kind badges */
 .task-note { display: flex; align-items: flex-start; gap: 6px; font-size: var(--fs-xs); color: var(--text-3); background: var(--surface-2); border-radius: 8px; padding: 5px 8px; margin-top: 4px; white-space: pre-wrap; word-break: break-word; }
 .task-note svg { width: 12px; height: 12px; flex: none; margin-top: 2px; }
-.mchip.xpc { background: var(--brand-soft); color: var(--brand); font-weight: 700; }
 .mchip.kind-w { background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal); font-weight: 700; }
-.xp-live { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: var(--r-md); background: var(--brand-soft); color: var(--brand); font-weight: 700; width: fit-content; }
-.xp-live svg { width: 15px; height: 15px; }
 
 /* ---- Goals & Roadmap (Phase 3) ------------------------------------------- */
 .goal-ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none; font-size: 17px; }
@@ -1058,8 +1050,6 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .habit-count .hc-val { font-family: var(--font-mono); font-weight: 800; min-width: 3.5ch; text-align: center; font-size: var(--fs-sm); }
 .hsub .hchip { display: inline-flex; align-items: center; gap: 3px; background: var(--surface-2); border-radius: 6px; padding: 1px 7px; font-weight: 600; }
 .hsub .hchip svg { width: 11px; height: 11px; }
-.hsub .hchip.hxp { background: var(--brand-soft); color: var(--brand); font-weight: 700; }
-.chip.hxp { background: var(--brand-soft); color: var(--brand); font-weight: 700; }
 .hweek { display: flex; gap: 4px; flex: none; margin-inline-end: 4px; }
 .hweek .hday { width: 13px; height: 13px; border-radius: 4px; background: var(--surface-3); border: 1px solid var(--border); cursor: pointer; transition: transform var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease); }
 .hweek .hday:hover { transform: scale(1.25); border-color: var(--brand); }
@@ -1240,21 +1230,6 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .rec-row .rec-val { font-weight: 800; font-family: var(--font-mono); }
 
 /* ---- Achievements & Search (Phase 9) ------------------------------------- */
-.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: var(--s-2); }
-.ach-item { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
-  padding: var(--s-3) var(--s-2); border-radius: var(--r-md); background: var(--surface-2); border: 1px solid transparent;
-  transition: transform var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease); }
-.ach-item.on { background: color-mix(in srgb, var(--brand) 9%, var(--surface)); border-color: color-mix(in srgb, var(--brand) 38%, transparent); }
-.ach-item.on:hover { transform: translateY(-2px); }
-.ach-badge { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 20px;
-  background: var(--surface-3); position: relative; }
-.ach-item.on .ach-badge { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 30%, transparent), color-mix(in srgb, var(--pink) 30%, transparent)); }
-.ach-item.off .ach-badge { filter: grayscale(1); opacity: .45; }
-.ach-name { font-size: var(--fs-sm); font-weight: 700; }
-.ach-item.off .ach-name { color: var(--text-3); }
-.ach-desc { font-size: 11px; color: var(--text-3); line-height: 1.4; }
-.ach-date { font-size: 10px; color: var(--brand); font-weight: 700; }
-.ach-xp { font-size: 10px; font-weight: 800; color: var(--orange); }
 
 .cmd-item .cmd-sub { font-size: 11px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmd-item .cmd-txt { min-width: 0; display: flex; flex-direction: column; }
@@ -1821,9 +1796,9 @@ const I18n = (() => {
       closeDay: 'بستن روز', freeDay: 'روز آزاد', resetDay: 'بازنشانی روز', unlockDay: 'باز کردن روز',
       dayClosed: 'این روز بسته شده', dayClosedSub: 'برای ویرایش، ابتدا روز را باز کنید.',
       title: 'عنوان', titlePh: 'چه کاری باید انجام شود؟', description: 'توضیحات', priority: 'اولویت', category: 'دسته', goal: 'هدف', tags: 'برچسب‌ها', tagsPh: 'با ویرگول جدا کنید',
-      dueTime: 'زمان سررسید', estDuration: 'مدت تخمینی (دقیقه)', actualDuration: 'مدت واقعی', xpReward: 'پاداش XP',
+      dueTime: 'زمان سررسید', estDuration: 'مدت تخمینی (دقیقه)', actualDuration: 'مدت واقعی', 
       taskKind: 'نوع کار', kind_daily: 'روزانه', kind_weekly: 'هفتگی',
-      xpAuto: 'پاداش XP (خودکار)', xpAutoHint: 'بر اساس اولویت، مدت تخمینی و اندازهٔ چک‌لیست محاسبه می‌شود؛ کار هفتگی ×۱٫۵.',
+      
       goalHint: 'با تکمیل این کار، پیشرفت هدف انتخاب‌شده به‌روز می‌شود.',
       taskNotesHint: 'یادداشت زیر عنوان کار، روی کارت آن نمایش داده می‌شود.',
       monthDay: 'روز ماه',
@@ -1839,14 +1814,14 @@ const I18n = (() => {
       noTasksToday: 'کاری برای این بخش نیست', noTasksHint: 'یک کار اضافه کن تا شروع کنی.', addFirstTask: 'افزودن کار',
       todaysTasks: 'کارهای امروز', pending: 'در انتظار', inProgress: 'در جریان', completed: 'انجام‌شده', overdue: 'عقب‌افتاده',
       progress: 'پیشرفت', activeGoals: 'اهداف فعال', focusToday: 'تمرکز امروز', todayProgress: 'پیشرفت امروز',
-      level: 'سطح', minShort: 'دقیقه', done: 'انجام شد',
+      minShort: 'دقیقه', done: 'انجام شد',
       confirmCloseDay: 'روز بسته شود؟ پس از این، ویرایش نیاز به باز کردن مجدد دارد.', dayClosedToast: 'روز با موفقیت بسته شد',
       confirmResetDay: 'همهٔ کارها و اطلاعات این روز پاک شود؟ این عمل قابل بازگشت نیست.', resetDayToast: 'روز بازنشانی شد', freeDayToast: 'به‌عنوان روز آزاد ثبت شد',
-      xpEarned: 'امتیاز گرفتی!', allDone: 'همهٔ کارها انجام شد! 🎉', selectGoal: 'بدون هدف', optional: 'اختیاری', deleteTaskQ: 'این کار حذف شود؟',
+      allDone: 'همهٔ کارها انجام شد! 🎉', selectGoal: 'بدون هدف', optional: 'اختیاری', deleteTaskQ: 'این کار حذف شود؟',
       // Phase 2 — Week & Month
       thisWeek: 'این هفته', prevWeek: 'هفتهٔ قبل', nextWeek: 'هفتهٔ بعد', thisMonth: 'این ماه', prevMonth: 'ماه قبل', nextMonth: 'ماه بعد',
       weeklyObjectives: 'اهداف هفته', weeklyReview: 'مرور هفته', weeklyReviewPh: 'این هفته چطور گذشت؟ چه چیزی خوب پیش رفت و چه چیزی می‌تواند بهتر شود؟',
-      weeklyStats: 'آمار هفته', completion: 'تکمیل', focusHours: 'ساعات تمرکز', activeDays: 'روزهای فعال', xpEarnedStat: 'XP کسب‌شده',
+      weeklyStats: 'آمار هفته', completion: 'تکمیل', focusHours: 'ساعات تمرکز', activeDays: 'روزهای فعال',
       bestCategory: 'بهترین دسته', weakestCategory: 'ضعیف‌ترین دسته', carryTasks: 'انتقال کارهای عقب‌افتاده', carriedToast: 'کارهای عقب‌افتاده به امروز منتقل شد',
       duplicateWeek: 'تکثیر هفته', duplicatedToast: 'هفته در هفتهٔ بعد کپی شد', archiveWeek: 'آرشیو هفته', unarchiveWeek: 'خروج از آرشیو', weekArchived: 'هفته آرشیو شد',
       addObjective: 'افزودن هدف', objectivePh: 'یک هدف برای این هفته…', weekOf: 'هفتهٔ', noTasksWeek: 'کاری برای این هفته نیست',
@@ -1889,7 +1864,6 @@ const I18n = (() => {
       skipDay: 'رد کردن امروز', freezeStreak: 'انجماد زنجیره', habitHistory: 'تاریخچهٔ عادت', habitTemplates: 'الگوهای عادت',
       todaysHabits: 'عادت‌های امروز', doneToday: 'انجام امروز', streakDays: 'روز', keepItUp: 'ادامه بده! 🔥',
       successRate: 'موفقیت', rateHint: 'نرخ موفقیت از زمان ساخت عادت', last7Days: '۷ روز اخیر — برای ثبت، کلیک کن',
-      habitXpHint: 'پاداش هر تکمیل: ۱۰ پایه + به‌ازای هر ۷ روز زنجیره ۱+ (سقف ۱۰+)',
       bestActiveStreak: 'بهترین زنجیرهٔ فعال', weekCompletions: 'تکمیل‌های این هفته',
       archiveHabit: 'آرشیو عادت', deleteHabitQ: 'این عادت و تاریخچه‌اش حذف شود؟', habitArchived: 'عادت آرشیو شد',
       noHabits: 'هنوز عادتی نداری', noHabitsHint: 'یک عادت کوچک بساز و هر روز انجامش بده.', addFirstHabit: 'افزودن اولین عادت',
@@ -1959,29 +1933,10 @@ const I18n = (() => {
       rangeYear: 'یک سال', tasksDone: 'کارهای انجام‌شده', goalsCompleted: 'اهداف تکمیل‌شده', habitsRate: 'نرخ عادت‌ها',
       records: 'رکوردها و نکته‌ها', mostProductiveDay: 'پربارترین روز هفته', mostProductiveHour: 'پربارترین ساعت',
       longestStreak: 'بلندترین زنجیره', largestExpense: 'بزرگ‌ترین هزینه', fastestGoal: 'سریع‌ترین هدف',
-      tasksTrend: 'روند کارهای انجام‌شده', movingAvg: 'میانگین متحرک ۷ روزه', xpTrend: 'روند XP',
+      tasksTrend: 'روند کارهای انجام‌شده', movingAvg: 'میانگین متحرک ۷ روزه',
       categoryBreakdown: 'تفکیک بر اساس دسته', incomeVsExpense: 'درآمد در برابر هزینه', notEnough: 'داده کافی نیست',
       daysUnit: 'روز', oclock: '',
-      // Phase 9 — Achievements & Global Search
-      achievements: 'دستاوردها', achUnlocked: 'دستاورد باز شد! 🎉', achLocked: 'قفل', achProgress: 'پیشرفت',
-      achAll: 'همه', achEarned: 'کسب‌شده', noAchievements: 'هنوز دستاوردی باز نشده',
-      ach_first_task: 'اولین قدم', achd_first_task: 'اولین کارت را انجام بده',
-      ach_tasks_100: 'صدتایی', achd_tasks_100: '۱۰۰ کار را کامل کن',
-      ach_tasks_1000: 'استاد کارها', achd_tasks_1000: '۱۰۰۰ کار را کامل کن',
-      ach_first_goal: 'رؤیاپرداز', achd_first_goal: 'اولین هدفت را بساز',
-      ach_goal_done: 'فاتح', achd_goal_done: 'اولین هدفت را کامل کن',
-      ach_first_habit: 'شروع عادت', achd_first_habit: 'اولین عادتت را بساز',
-      ach_streak_7: 'یک هفته پایدار', achd_streak_7: 'زنجیرهٔ ۷ روزه بساز',
-      ach_streak_30: 'یک ماه پایدار', achd_streak_30: 'زنجیرهٔ ۳۰ روزه بساز',
-      ach_streak_100: 'صد روز پایدار', achd_streak_100: 'زنجیرهٔ ۱۰۰ روزه بساز',
-      ach_year_consistency: 'یک سال پایداری', achd_year_consistency: 'زنجیرهٔ ۳۶۵ روزه بساز',
-      ach_xp_1000: 'هزار امتیاز', achd_xp_1000: '۱۰۰۰ XP جمع کن',
-      ach_xp_10000: 'ده هزار امتیاز', achd_xp_10000: '۱۰۰۰۰ XP جمع کن',
-      ach_first_note: 'یادداشت‌نویس', achd_first_note: 'اولین یادداشتت را بنویس',
-      ach_first_budget: 'برنامه‌ریز مالی', achd_first_budget: 'اولین بودجه‌ات را بساز',
-      ach_first_review: 'مرورگر روز', achd_first_review: 'اولین روزت را ببند',
-      ach_focus_10: 'ده پومودورو', achd_focus_10: '۱۰ جلسهٔ تمرکز کامل کن',
-      ach_focus_100: 'ذهن متمرکز', achd_focus_100: '۱۰۰ جلسهٔ تمرکز کامل کن',
+      // Phase 9 — Global Search
       srch_task: 'کارها', srch_goal: 'اهداف', srch_habit: 'عادت‌ها', srch_note: 'یادداشت‌ها', srch_finance: 'مالی', srch_day: 'روزنوشت',
       recentSearches: 'جستجوهای اخیر', clearRecent: 'پاک کردن', searchEverything: 'جستجو در همه‌چیز…', noResults: 'نتیجه‌ای پیدا نشد',
       // Phase 10 — Reviews & Notifications
@@ -2110,9 +2065,9 @@ const I18n = (() => {
       closeDay: 'Close day', freeDay: 'Free day', resetDay: 'Reset day', unlockDay: 'Unlock day',
       dayClosed: 'This day is closed', dayClosedSub: 'Unlock the day to edit it.',
       title: 'Title', titlePh: 'What needs to be done?', description: 'Description', priority: 'Priority', category: 'Category', goal: 'Goal', tags: 'Tags', tagsPh: 'Comma separated',
-      dueTime: 'Due time', estDuration: 'Estimate (min)', actualDuration: 'Actual', xpReward: 'XP reward',
+      dueTime: 'Due time', estDuration: 'Estimate (min)', actualDuration: 'Actual', 
       taskKind: 'Task type', kind_daily: 'Daily', kind_weekly: 'Weekly',
-      xpAuto: 'XP reward (auto)', xpAutoHint: 'Computed from priority, estimate and checklist size; weekly tasks ×1.5.',
+      
       goalHint: 'Completing this task updates the selected goal’s progress.',
       taskNotesHint: 'Shown on the task card, under its title.',
       monthDay: 'Day of month',
@@ -2128,14 +2083,14 @@ const I18n = (() => {
       noTasksToday: 'Nothing here yet', noTasksHint: 'Add a task to get started.', addFirstTask: 'Add task',
       todaysTasks: "Today's tasks", pending: 'Pending', inProgress: 'In progress', completed: 'Completed', overdue: 'Overdue',
       progress: 'Progress', activeGoals: 'Active goals', focusToday: 'Focus today', todayProgress: "Today's progress",
-      level: 'Level', minShort: 'min', done: 'Done',
+      minShort: 'min', done: 'Done',
       confirmCloseDay: 'Close this day? Editing afterwards requires unlocking it.', dayClosedToast: 'Day closed successfully',
       confirmResetDay: 'Erase all tasks and data for this day? This cannot be undone.', resetDayToast: 'Day reset', freeDayToast: 'Marked as a free day',
-      xpEarned: 'XP earned!', allDone: 'All done! 🎉', selectGoal: 'No goal', optional: 'optional', deleteTaskQ: 'Delete this task?',
+      allDone: 'All done! 🎉', selectGoal: 'No goal', optional: 'optional', deleteTaskQ: 'Delete this task?',
       // Phase 2 — Week & Month
       thisWeek: 'This week', prevWeek: 'Previous week', nextWeek: 'Next week', thisMonth: 'This month', prevMonth: 'Previous month', nextMonth: 'Next month',
       weeklyObjectives: 'Weekly objectives', weeklyReview: 'Weekly review', weeklyReviewPh: 'How did this week go? What went well and what could improve?',
-      weeklyStats: 'Weekly stats', completion: 'Completion', focusHours: 'Focus hours', activeDays: 'Active days', xpEarnedStat: 'XP earned',
+      weeklyStats: 'Weekly stats', completion: 'Completion', focusHours: 'Focus hours', activeDays: 'Active days',
       bestCategory: 'Best category', weakestCategory: 'Weakest category', carryTasks: 'Carry over overdue', carriedToast: 'Overdue tasks moved to today',
       duplicateWeek: 'Duplicate week', duplicatedToast: 'Week copied to next week', archiveWeek: 'Archive week', unarchiveWeek: 'Unarchive', weekArchived: 'Week archived',
       addObjective: 'Add objective', objectivePh: 'An objective for this week…', weekOf: 'Week of', noTasksWeek: 'No tasks this week',
@@ -2178,7 +2133,6 @@ const I18n = (() => {
       skipDay: 'Skip today', freezeStreak: 'Freeze streak', habitHistory: 'Habit history', habitTemplates: 'Habit templates',
       todaysHabits: "Today's habits", doneToday: 'Done today', streakDays: 'days', keepItUp: 'Keep it up! 🔥',
       successRate: 'success', rateHint: 'Success rate since the habit was created', last7Days: 'Last 7 days — click to log',
-      habitXpHint: 'XP per completion: 10 base + 1 per full week of streak (cap +10)',
       bestActiveStreak: 'Best active streak', weekCompletions: 'Done this week',
       archiveHabit: 'Archive habit', deleteHabitQ: 'Delete this habit and its history?', habitArchived: 'Habit archived',
       noHabits: 'No habits yet', noHabitsHint: 'Start a small habit and do it every day.', addFirstHabit: 'Add your first habit',
@@ -2248,29 +2202,10 @@ const I18n = (() => {
       rangeYear: '1 year', tasksDone: 'Tasks completed', goalsCompleted: 'Goals completed', habitsRate: 'Habit rate',
       records: 'Records & insights', mostProductiveDay: 'Most productive weekday', mostProductiveHour: 'Most productive hour',
       longestStreak: 'Longest streak', largestExpense: 'Largest expense', fastestGoal: 'Fastest goal',
-      tasksTrend: 'Completed tasks trend', movingAvg: '7-day moving average', xpTrend: 'XP trend',
+      tasksTrend: 'Completed tasks trend', movingAvg: '7-day moving average',
       categoryBreakdown: 'Category breakdown', incomeVsExpense: 'Income vs expense', notEnough: 'Not enough data',
       daysUnit: 'days', oclock: "o'clock",
-      // Phase 9 — Achievements & Global Search
-      achievements: 'Achievements', achUnlocked: 'Achievement unlocked! 🎉', achLocked: 'Locked', achProgress: 'Progress',
-      achAll: 'All', achEarned: 'Earned', noAchievements: 'No achievements yet',
-      ach_first_task: 'First step', achd_first_task: 'Complete your first task',
-      ach_tasks_100: 'Century', achd_tasks_100: 'Complete 100 tasks',
-      ach_tasks_1000: 'Task master', achd_tasks_1000: 'Complete 1,000 tasks',
-      ach_first_goal: 'Dreamer', achd_first_goal: 'Create your first goal',
-      ach_goal_done: 'Achiever', achd_goal_done: 'Complete your first goal',
-      ach_first_habit: 'Habit starter', achd_first_habit: 'Create your first habit',
-      ach_streak_7: 'One steady week', achd_streak_7: 'Reach a 7-day streak',
-      ach_streak_30: 'One steady month', achd_streak_30: 'Reach a 30-day streak',
-      ach_streak_100: 'Hundred days', achd_streak_100: 'Reach a 100-day streak',
-      ach_year_consistency: 'A year of consistency', achd_year_consistency: 'Reach a 365-day streak',
-      ach_xp_1000: 'One thousand XP', achd_xp_1000: 'Earn 1,000 XP',
-      ach_xp_10000: 'Ten thousand XP', achd_xp_10000: 'Earn 10,000 XP',
-      ach_first_note: 'Note taker', achd_first_note: 'Write your first note',
-      ach_first_budget: 'Money planner', achd_first_budget: 'Create your first budget',
-      ach_first_review: 'Day reviewer', achd_first_review: 'Close your first day',
-      ach_focus_10: 'Ten pomodoros', achd_focus_10: 'Finish 10 focus sessions',
-      ach_focus_100: 'Focused mind', achd_focus_100: 'Finish 100 focus sessions',
+      // Phase 9 — Global Search
       srch_task: 'Tasks', srch_goal: 'Goals', srch_habit: 'Habits', srch_note: 'Notes', srch_finance: 'Finance', srch_day: 'Journal',
       recentSearches: 'Recent searches', clearRecent: 'Clear', searchEverything: 'Search everything…', noResults: 'No results found',
       // Phase 10 — Reviews & Notifications
@@ -2575,8 +2510,17 @@ const DB = (() => {
     focus:        { key: 'id', indexes: [['date','date']] },
     days:         { key: 'id', indexes: [['date','date']] },
     reviews:      { key: 'id', indexes: [['kind','kind'],['date','date']] },
-    achievements: { key: 'id', indexes: [['unlockedAt','unlockedAt']] },
+    /* xpLog + achievements: RETIRED, not removed. Nothing writes or reads them
+       any more (gamification is gone), but six code paths iterate
+       Object.keys(STORES) — exportAll, importAll, repair, Recovery.diagnose,
+       validateBackup and resetApp. Dropping the names here would NOT drop the
+       object stores (no VERSION bump means no onupgradeneeded), it would just
+       make existing rows invisible to export while they still sit on disk —
+       so the next export → reset → import round trip would destroy years of
+       history silently. Leave them; they cost two lines and keep every old
+       backup restorable. */
     xpLog:        { key: 'id', indexes: [['date','date']] },
+    achievements: { key: 'id', indexes: [['unlockedAt','unlockedAt']] },
     events:       { key: 'id', indexes: [['date','date']] },
     weeks:        { key: 'id', indexes: [['archived','archived']] },
     kv:           { key: 'k', indexes: [] },
@@ -3322,8 +3266,6 @@ const Dashboard = (() => {
     const overdueToday = todayTasks.filter(t => Tasks.isOverdue(t)).length;
     const activeToday = todayTasks.filter(t => t.timerStartedAt).length;
     const todayPct = todayTasks.length ? Math.round((doneToday / todayTasks.length) * 100) : 0;
-    const xpTotal = await XP.total();
-    const lvl = XP.levelFor(xpTotal);
 
     const wrap = el('.col.gap-6.dash');
 
@@ -3369,7 +3311,7 @@ const Dashboard = (() => {
       wrap.appendChild(card);
     }
 
-    /* Today progress + XP level */
+    /* Today progress */
     wrap.appendChild(el('.grid.g-2', {}, [
       el('.card.pad.col.gap-4', {}, [
         el('.row.between', {}, [ el('.h4', { text: I18n.t('todayProgress') }),
@@ -3384,14 +3326,6 @@ const Dashboard = (() => {
               overdueToday ? el('.chip', {}, [ el('.dot', { style: { background: 'var(--red)' } }), el('span', { text: `${I18n.t('overdue')}: ${I18n.num(overdueToday)}` }) ]) : null,
             ]),
           ]),
-        ]),
-      ]),
-      el('.card.pad.col.gap-4', { style: { background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand) 12%, var(--surface)), var(--surface))' } }, [
-        el('.row.between', {}, [ el('.h4', { text: I18n.t('level') + ' ' + I18n.num(lvl.level) }),
-          el('.chip', {}, [ el('span', { html: icon('bolt') }), el('span', { text: `${I18n.num(xpTotal)} XP` }) ]) ]),
-        el('.col.gap-2', {}, [
-          el('.bar', {}, [ el('span.shine', { style: { width: lvl.pct + '%', background: 'linear-gradient(90deg,var(--brand),var(--pink))' } }) ]),
-          el('.xs.dim', { text: `${I18n.num(lvl.into)} / ${I18n.num(lvl.need)} XP → ${I18n.t('level')} ${I18n.num(lvl.level + 1)}` }),
         ]),
       ]),
     ]));
@@ -3551,20 +3485,6 @@ const Dashboard = (() => {
           ]),
           el('button.btn.sm.primary', { text: I18n.t('doItNow'), onclick: () => { Focus.start(rankedTop.task); Router.go('focus'); } }),
         ]),
-      ]));
-    }
-
-    /* Recently unlocked achievements */
-    // Unlocked-only path: the dashboard shows badges, not progress bars, so it
-    // must not trigger the expensive stats snapshot.
-    const achEarned = await Achievements.unlockedList();
-    if (achEarned.length) {
-      wrap.appendChild(el('.card.pad.col.gap-3', {}, [
-        el('.row.between', {}, [
-          wTitle('trophy', 'var(--pink)', I18n.t('achievements')),
-          el('button.btn.sm.ghost', { html: `<span>${I18n.num(achEarned.length)}/${I18n.num(Achievements.total())}</span>` + icon('arrowR'), onclick: () => Router.go('stats') }),
-        ]),
-        Achievements.grid(achEarned, { limit: 4 }),
       ]));
     }
 
@@ -4114,46 +4034,7 @@ const Shortcuts = (() => {
 })();
 
 /* ---------------------------------------------------------------------------
-   15b. XP engine (lightweight — full level/achievements UI arrives Phase 8)
-   ------------------------------------------------------------------------- */
-const XP = (() => {
-  const BY_PRIORITY = { none: 5, low: 8, medium: 12, high: 18, urgent: 25 };
-  const forPriority = (p) => BY_PRIORITY[p] ?? 10;
-  /** Auto XP: priority base + estimate (+2 per 10min, cap +30) + checklist (+2/item, cap +20).
-      Weekly tasks ×1.5 (bigger scope). The single source of truth — XP is never user-set. */
-  function forTask(t) {
-    const base = BY_PRIORITY[t.priority] ?? 10;
-    const dur = Math.min(30, Math.floor((t.estimateMin || 0) / 10) * 2);
-    const cl = Math.min(20, ((t.checklist && t.checklist.length) || 0) * 2);
-    const mult = t.kind === 'weekly' ? 1.5 : 1;
-    return Math.round((base + dur + cl) * mult);
-  }
-  async function award(amount, source, refId, atEl) {
-    if (!amount) return;
-    await DB.put('xpLog', { date: Jalali.todayKey(), amount, source, refId });
-    Bus.emit('xp:award', { amount, source, refId });
-    if (atEl) float(amount, atEl);
-  }
-  async function total() { const rows = await DB.all('xpLog'); return rows.reduce((s, r) => s + (r.amount || 0), 0); }
-  /** Levels get gradually harder (×1.35 per level). */
-  function levelFor(xp) {
-    let level = 1, need = 100, acc = 0;
-    while (xp >= acc + need) { acc += need; level++; need = Math.round(need * 1.35); }
-    return { level, into: xp - acc, need, pct: Math.round(((xp - acc) / need) * 100) };
-  }
-  function float(amount, elem) {
-    const r = elem.getBoundingClientRect();
-    const node = document.createElement('div');
-    node.className = 'xpfloat'; node.textContent = '+' + I18n.num(amount) + ' XP';
-    node.style.left = (r.left + r.width / 2 - 18) + 'px';
-    node.style.top = (r.top - 8) + 'px';
-    document.body.appendChild(node); setTimeout(() => node.remove(), 1150);
-  }
-  return { forPriority, forTask, award, total, levelFor };
-})();
-
-/* ---------------------------------------------------------------------------
-   15c. Tasks — data model, timer, completion, XP hooks
+   15c. Tasks — data model, timer, completion
    ------------------------------------------------------------------------- */
 const Tasks = (() => {
   const PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'];
@@ -4167,7 +4048,7 @@ const Tasks = (() => {
       completed: false, completedAt: null,
       priority: 'none', category: '', goalId: null, tags: [],
       dueTime: null, estimateMin: 0, actualSec: 0, timerStartedAt: null,
-      xp: 0, color: null, reminderAt: null,
+      color: null, reminderAt: null,
       repeat: { type: 'none', days: [] },
       checklist: [], links: [], pomodoros: 0,
       ...over,
@@ -4175,12 +4056,8 @@ const Tasks = (() => {
   }
   /** Invariant: weekly tasks are always anchored to their week-start key. */
   const normalize = (t) => { if (t.kind === 'weekly' && t.date) t.date = Habits.weekStartKey(t.date); return t; };
-  async function create(data) {
-    const t = normalize(make(data));
-    t.xp = XP.forTask(t);
-    return DB.put('tasks', t);
-  }
-  const update = (t) => { normalize(t); t.xp = XP.forTask(t); return DB.put('tasks', t); };
+  const create = (data) => DB.put('tasks', normalize(make(data)));
+  const update = (t) => { normalize(t); return DB.put('tasks', t); };
   const remove = (t) => DB.softDelete('tasks', t.id);
 
   async function forDate(dateKey, { kind } = {}) {
@@ -4212,13 +4089,12 @@ const Tasks = (() => {
   async function startTimer(t) { if (t.timerStartedAt) return t; t.timerStartedAt = Date.now(); await update(t); Bus.emit('timer:change', t.id); return t; }
   async function stopTimer(t) { if (t.timerStartedAt) { t.actualSec = elapsed(t); t.timerStartedAt = null; await update(t); Bus.emit('timer:change', t.id); } return t; }
 
-  async function toggleComplete(t, atEl) {
+  async function toggleComplete(t) {
     t.completed = !t.completed;
     if (t.completed) {
       t.completedAt = Date.now();
       if (t.timerStartedAt) { t.actualSec = elapsed(t); t.timerStartedAt = null; }
       await update(t);
-      await XP.award(XP.forTask(t), 'task', t.id, atEl);
       Bus.emit('task:complete', t);
     } else { t.completedAt = null; await update(t); Bus.emit('task:uncomplete', t); }
     return t;
@@ -4258,7 +4134,7 @@ const TaskUI = (() => {
       onclick: async (e) => { e.stopPropagation(); if (readonly) return;
         // Optimistic UI: flip the check instantly; the soft re-render follows.
         const done = !t.completed; wrap.classList.toggle('done', done); check.innerHTML = done ? icon('check') : ''; check.setAttribute('aria-checked', String(done));
-        await Tasks.toggleComplete(t, check); onChange && onChange(); },
+        await Tasks.toggleComplete(t); onChange && onChange(); },
       onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); check.click(); } } });
     wrap.appendChild(check);
 
@@ -4288,7 +4164,6 @@ const TaskUI = (() => {
       const done = t.checklist.filter(c => c.done).length;
       meta.appendChild(el('.mchip', {}, [el('span', { html: icon('check') }), el('span', { text: `${I18n.num(done)}/${I18n.num(t.checklist.length)}` })]));
     }
-    meta.appendChild(el('.mchip.xpc', {}, [el('span', { html: icon('bolt') }), el('span', { text: `${I18n.num(XP.forTask(t))}` })]));
     main.appendChild(meta);
     wrap.appendChild(main);
 
@@ -4357,18 +4232,13 @@ const TaskUI = (() => {
     const titleInput = el('input.input', { value: t.title, placeholder: I18n.t('titlePh'), oninput: (e) => t.title = e.target.value });
     const descInput = el('textarea.textarea', { placeholder: I18n.t('description'), style: { minHeight: '60px' }, oninput: (e) => t.description = e.target.value }, t.description || '');
 
-    // XP is computed, never typed — live readout that follows priority/estimate/checklist/kind.
-    const xpVal = el('b', { text: I18n.num(XP.forTask(t)) });
-    const xpBadge = el('.xp-live', {}, [el('span', { html: icon('bolt') }), xpVal, el('span', { text: 'XP' })]);
-    const recalcXp = () => { xpVal.textContent = I18n.num(XP.forTask(t)); };
-
     const priPick = Views.picker(Tasks.PRIORITIES.map(p => [p, I18n.t('p_' + p)]), t.priority,
-      (v) => { t.priority = v; recalcXp(); });
+      (v) => { t.priority = v; });
 
     // Two choices don't deserve a dropdown — one tap instead of three.
     // ('routine' is gone: recurring things are habits now.)
     const kindPick = Views.picker(['daily', 'weekly'].map(k => [k, I18n.t('kind_' + k)]), t.kind,
-      (v) => { t.kind = v; recalcXp(); });
+      (v) => { t.kind = v; });
 
     const dateInput = JalaliPicker.input({ value: t.date, onChange: (k) => t.date = k });
 
@@ -4377,7 +4247,7 @@ const TaskUI = (() => {
       ...Tasks.CATEGORIES.map(c => el('option', { value: c, text: I18n.t('cat_' + c), selected: t.category === c })),
     ]);
     const timeInput = TimePicker.input({ value: t.dueTime, onChange: (v) => t.dueTime = v || null });
-    const estInput = el('input.input', { type: 'number', min: 0, value: t.estimateMin || '', placeholder: '0', oninput: (e) => { t.estimateMin = +e.target.value || 0; recalcXp(); } });
+    const estInput = el('input.input', { type: 'number', min: 0, value: t.estimateMin || '', placeholder: '0', oninput: (e) => { t.estimateMin = +e.target.value || 0; } });
     const goalSel = el('select.select', { onchange: (e) => t.goalId = e.target.value || null }, [
       el('option', { value: '', text: I18n.t('selectGoal') }),
       ...goals.map(g => el('option', { value: g.id, text: g.title, selected: t.goalId === g.id })),
@@ -4403,12 +4273,12 @@ const TaskUI = (() => {
       (t.checklist || []).forEach((item, idx) => clList.appendChild(el('.row.gap-2', {}, [
         el('.cl-box' + (item.done ? '.on' : ''), { html: item.done ? icon('check') : '', onclick: () => { item.done = !item.done; renderCl(); } }),
         el('input.input.grow', { value: item.text, oninput: (e) => item.text = e.target.value }),
-        el('button.tb-btn', { html: icon('x'), onclick: () => { t.checklist.splice(idx, 1); renderCl(); recalcXp(); } }),
+        el('button.tb-btn', { html: icon('x'), onclick: () => { t.checklist.splice(idx, 1); renderCl(); } }),
       ])));
     }
     renderCl();
     const clAdd = el('.quickadd', {}, [el('span', { html: icon('plus'), style: { color: 'var(--text-3)' } }),
-      el('input', { placeholder: I18n.t('checklistPh'), onkeydown: (e) => { if (e.key === 'Enter' && e.target.value.trim()) { t.checklist = t.checklist || []; t.checklist.push({ id: uid(), text: e.target.value.trim(), done: false }); e.target.value = ''; renderCl(); recalcXp(); } } })]);
+      el('input', { placeholder: I18n.t('checklistPh'), onkeydown: (e) => { if (e.key === 'Enter' && e.target.value.trim()) { t.checklist = t.checklist || []; t.checklist.push({ id: uid(), text: e.target.value.trim(), done: false }); e.target.value = ''; renderCl(); } } })]);
 
     const notesInput = el('textarea.textarea', { placeholder: I18n.t('taskNotesPh'), oninput: (e) => t.notes = e.target.value }, t.notes || '');
 
@@ -4431,7 +4301,7 @@ const TaskUI = (() => {
     const form = el('.col.gap-4', {}, [
       field(I18n.t('title'), titleInput),
       el('.grid.g-2', {}, [field(I18n.t('taskKind'), kindPick), dateField]),
-      field(I18n.t('priority'), el('.row.between.gap-3.wrap', {}, [priPick, xpBadge])),
+      field(I18n.t('priority'), priPick),
       field(I18n.t('dueTime'), timeInput),
       moreBtn, moreWrap,
     ]);
@@ -4718,7 +4588,7 @@ const Today = (() => {
     if (!(await UI.confirm({ title: I18n.t('closeDay'), message: I18n.t('confirmCloseDay') }))) return;
     const tasks = await Tasks.forDate(key);
     day.closed = true; day.closedAt = Date.now();
-    day.stats = { total: tasks.length, completed: tasks.filter(t => t.completed).length, xp: await XP.total() };
+    day.stats = { total: tasks.length, completed: tasks.filter(t => t.completed).length };
     await saveDay(day); Bus.emit('day:close', day); UI.toast('success', I18n.t('dayClosedToast')); refresh();
   }
   async function resetDay(key, day) {
@@ -4812,7 +4682,7 @@ const Week = (() => {
     const check = el('.wk-check', { html: t.completed ? icon('check') : '',
       onclick: async (e) => { e.stopPropagation(); const done = !t.completed;
         c.classList.toggle('done', done); check.innerHTML = done ? icon('check') : '';
-        await Tasks.toggleComplete(t, check); refresh(); } });
+        await Tasks.toggleComplete(t); refresh(); } });
     c.appendChild(check);
     c.appendChild(el('.wk-title', { text: t.title }));
     c.addEventListener('click', () => TaskUI.openEditor(t, refresh));
@@ -4868,7 +4738,6 @@ const Week = (() => {
     const pct = total ? Math.round(done / total * 100) : 0;
     const focusH = all.reduce((s, t) => s + (t.actualSec || 0), 0) / 3600;
     const activeDays = days.filter(dk => all.some(t => t.date === dk && t.completed)).length;
-    const xpSum = (await DB.all('xpLog')).filter(r => days.includes(r.date)).reduce((s, r) => s + (r.amount || 0), 0);
     const catStats = {};
     all.forEach(t => { if (!t.category) return; const c = catStats[t.category] || (catStats[t.category] = { done: 0, total: 0 }); c.total++; if (t.completed) c.done++; });
     let best = null, worst = null;
@@ -4877,7 +4746,6 @@ const Week = (() => {
       { cap: I18n.t('completion'), num: I18n.num(pct) + '%', ic: 'check', color: 'var(--green)' },
       { cap: I18n.t('focusHours'), num: I18n.num(focusH.toFixed(1)), ic: 'clock', color: 'var(--brand)' },
       { cap: I18n.t('activeDays'), num: I18n.num(activeDays), ic: 'today', color: 'var(--blue)' },
-      { cap: I18n.t('xpEarnedStat'), num: I18n.num(xpSum), ic: 'bolt', color: 'var(--orange)' },
     ];
     const grid = el('.grid.g-4');
     tiles.forEach(t => grid.appendChild(el('.card.pad.stat', {}, [ el('.row.between', {}, [
@@ -4947,12 +4815,11 @@ const Month = (() => {
     // (they used to be counted here as kind:'routine' tasks + day.routineState).
     const habits = (await DB.all('habits')).filter(h => h.status !== 'archived');
     const hMaps = await Habits.allRecordsMaps();
-    const xpByDay = {}; (await DB.range('xpLog', 'date', lo, hi)).forEach(r => { xpByDay[r.date] = (xpByDay[r.date] || 0) + (r.amount || 0); });
 
     const wrap = el('.col.gap-6');
     wrap.appendChild(header());
-    wrap.appendChild(grid(dayKeys, lead, dayRecs, tasksByDay, xpByDay, habits, hMaps));
-    wrap.appendChild(stats(dayKeys, dayRecs, tasksByDay, xpByDay, weekly, habits, hMaps));
+    wrap.appendChild(grid(dayKeys, lead, dayRecs, tasksByDay, habits, hMaps));
+    wrap.appendChild(stats(dayKeys, dayRecs, tasksByDay, weekly, habits, hMaps));
     return wrap;
   }
   function header() {
@@ -4979,7 +4846,7 @@ const Month = (() => {
     const due = habits.filter(h => (h.createdKey || '') <= dk && Habits.isScheduled(h, dk));
     return { due: due.length, done: due.filter(h => Habits.isComplete(h, (hMaps[h.id] || {})[dk])).length };
   }
-  function grid(dayKeys, lead, dayRecs, tasksByDay, xpByDay, habits, hMaps) {
+  function grid(dayKeys, lead, dayRecs, tasksByDay, habits, hMaps) {
     const pref = Prefs.get('weekStart') || 0;
     const wdRow = el('.month-wdrow');
     for (let i = 0; i < 7; i++) wdRow.appendChild(el('.month-wd', { text: Jalali.weekdays[I18n.get()][(pref + i) % 7] }));
@@ -5008,7 +4875,6 @@ const Month = (() => {
       }
       const bottom = el('.mrow');
       if (total) bottom.appendChild(el('.tcount', { text: `${I18n.num(done)}/${I18n.num(total)}` }));
-      if (xpByDay[dk]) bottom.appendChild(el('.mxp', { text: `${I18n.num(xpByDay[dk])}xp` }));
       cell.appendChild(bottom);
       if (total) cell.appendChild(el('.mbar', {}, [ el('span', { style: { width: pct + '%' } }) ]));
       cell.appendChild(el('button.madd', { html: icon('plus'), title: I18n.t('addTask'), 'aria-label': I18n.t('addTask'),
@@ -5017,7 +4883,7 @@ const Month = (() => {
     });
     return el('.card.pad', {}, [ wdRow, g ]);
   }
-  function stats(dayKeys, dayRecs, tasksByDay, xpByDay, weekly, habits, hMaps) {
+  function stats(dayKeys, dayRecs, tasksByDay, weekly, habits, hMaps) {
     const todayK = Jalali.todayKey();
     let done = 0, total = 0, focusSec = 0;
     dayKeys.forEach(dk => { const l = tasksByDay[dk]; total += l.length; done += l.filter(t => t.completed).length; focusSec += l.reduce((a, t) => a + (t.actualSec || 0), 0);
@@ -5026,7 +4892,6 @@ const Month = (() => {
     total += weekly.length; done += weekly.filter(t => t.completed).length;
     focusSec += weekly.reduce((a, t) => a + (t.actualSec || 0), 0);
     const pct = total ? Math.round(done / total * 100) : 0;
-    const xpSum = Object.values(xpByDay).reduce((a, b) => a + b, 0);
     const activeDays = dayKeys.filter(dk => tasksByDay[dk].some(t => t.completed)).length;
     const moods = dayKeys.map(dk => dayRecs[dk] && dayRecs[dk].checkin && dayRecs[dk].checkin.mood).filter(Boolean).map(m => MOOD_VAL[m]);
     const moodAvg = moods.length ? moods.reduce((a, b) => a + b, 0) / moods.length : 0;
@@ -5034,7 +4899,6 @@ const Month = (() => {
     const sleepAvg = sleeps.length ? sleeps.reduce((a, b) => a + b, 0) / sleeps.length : 0;
     const tiles = [
       { cap: I18n.t('completion'), num: I18n.num(pct) + '%', ic: 'check', color: 'var(--green)' },
-      { cap: I18n.t('xpEarnedStat'), num: I18n.num(xpSum), ic: 'bolt', color: 'var(--orange)' },
       { cap: I18n.t('activeDays'), num: I18n.num(activeDays), ic: 'today', color: 'var(--blue)' },
       { cap: I18n.t('focusHours'), num: I18n.num((focusSec / 3600).toFixed(1)), ic: 'clock', color: 'var(--brand)' },
       { cap: I18n.t('moodAverage'), num: moodAvg ? I18n.num(moodAvg.toFixed(1)) : '—', ic: 'health', color: 'var(--pink)' },
@@ -5117,7 +4981,7 @@ const Goals = (() => {
     const expected = clamp(Math.round(elapsed / total * 100), 0, 100);
     return { expected, behind: pct < expected - 5, remaining: remainingDays(goal) };
   }
-  async function complete(g) { g.status = 'completed'; g.completedAt = Date.now(); addActivity(g, 'statusChanged', 'completed'); await update(g); await XP.award(50, 'goal', g.id); Bus.emit('goal:complete', g); }
+  async function complete(g) { g.status = 'completed'; g.completedAt = Date.now(); addActivity(g, 'statusChanged', 'completed'); await update(g); Bus.emit('goal:complete', g); }
   async function setStatus(g, status) { g.status = status; if (status !== 'completed') g.completedAt = null; addActivity(g, 'statusChanged', status); await update(g); }
   async function removeCascade(g, all) { for (const d of descendants(g.id, all)) await DB.softDelete('goals', d.id); await DB.softDelete('goals', g.id); }
   return { make, create, update, addActivity, children, roots, descendants, progress, remainingDays, forecast, complete, setStatus, removeCascade, STATUSES, EMOJIS, TEMPLATES };
@@ -5660,16 +5524,13 @@ const Habits = (() => {
     return { streak: cs, best, rate: total ? Math.round(metCount / total * 100) : 0, total, metCount };
   }
   const blank = (h, key) => ({ habitId: h.id, date: key, done: false, value: 0, skipped: false });
-  /** XP per completion: 10 base + 1 per full week of current streak (cap +10).
-      Rewards consistency — same "auto, never manual" rule as task XP. */
-  function xpFor(h, map) { const s = stats(h, map).streak; return 10 + Math.min(10, Math.floor(s / 7)); }
-  async function toggle(h, key, map, atEl) { const r = map[key] || blank(h, key); r.skipped = false; r.done = !r.done; r.value = r.done ? (h.target || 1) : 0; await DB.put('habitRecords', r); map[key] = r; if (r.done) { await XP.award(xpFor(h, map), 'habit', h.id, atEl); Bus.emit('habit:complete', { habit: h, date: key }); } return r; }
-  async function increment(h, key, map, delta, atEl) { const r = map[key] || blank(h, key); r.skipped = false; const was = isComplete(h, r); r.value = clamp((r.value || 0) + delta, 0, 99999); r.done = r.value >= (h.target || 1); await DB.put('habitRecords', r); map[key] = r; if (!was && r.done) { await XP.award(xpFor(h, map), 'habit', h.id, atEl); Bus.emit('habit:complete', { habit: h, date: key }); } return r; }
+  async function toggle(h, key, map) { const r = map[key] || blank(h, key); r.skipped = false; r.done = !r.done; r.value = r.done ? (h.target || 1) : 0; await DB.put('habitRecords', r); map[key] = r; if (r.done) Bus.emit('habit:complete', { habit: h, date: key }); return r; }
+  async function increment(h, key, map, delta) { const r = map[key] || blank(h, key); r.skipped = false; const was = isComplete(h, r); r.value = clamp((r.value || 0) + delta, 0, 99999); r.done = r.value >= (h.target || 1); await DB.put('habitRecords', r); map[key] = r; if (!was && r.done) Bus.emit('habit:complete', { habit: h, date: key }); return r; }
   async function skip(h, key, map) { const r = map[key] || blank(h, key); r.skipped = !r.skipped; if (r.skipped) { r.done = false; r.value = 0; } await DB.put('habitRecords', r); map[key] = r; return r; }
   async function freeze(h, map) { let k = Jalali.addDays(Jalali.todayKey(), -1), guard = 0;
     while (guard++ < 14) { if (isScheduled(h, k)) { const r = map[k]; if (!isComplete(h, r) && !(r && r.skipped)) { await skip(h, k, map); return k; } } k = Jalali.addDays(k, -1); } return null; }
   function level(h, r) { if (!r) return 0; if (r.skipped) return -1; if (h.target > 1) { const v = r.value || 0; return v <= 0 ? 0 : Math.min(4, Math.max(1, Math.ceil(v / h.target * 4))); } return r.done ? 4 : 0; }
-  return { make, create, update, recordsMap, allRecordsMaps, isScheduled, isComplete, stats, xpFor, toggle, increment, skip, freeze, level, weekStartKey, TYPES, EMOJIS, TEMPLATES };
+  return { make, create, update, recordsMap, allRecordsMaps, isScheduled, isComplete, stats, toggle, increment, skip, freeze, level, weekStartKey, TYPES, EMOJIS, TEMPLATES };
 })();
 
 /* ---------------------------------------------------------------------------
@@ -5694,12 +5555,12 @@ const HabitsView = (() => {
       return el('.habit-count', {}, [
         el('button.counter-btn', { text: '−', disabled: readonly, onclick: async (e) => { e.stopPropagation(); await Habits.increment(h, key, map, -1); onChange(); } }),
         val,
-        el('button.counter-btn', { disabled: readonly, style: Habits.isComplete(h, map[key]) ? { background: h.color, color: '#fff' } : {}, text: '+', onclick: async (e) => { e.stopPropagation(); await Habits.increment(h, key, map, 1, e.currentTarget); onChange(); } }),
+        el('button.counter-btn', { disabled: readonly, style: Habits.isComplete(h, map[key]) ? { background: h.color, color: '#fff' } : {}, text: '+', onclick: async (e) => { e.stopPropagation(); await Habits.increment(h, key, map, 1); onChange(); } }),
       ]);
     }
     const done = Habits.isComplete(h, r);
     return el('.habit-check' + (done ? '.on' : ''), { style: done ? { background: h.color, borderColor: h.color } : {}, html: done ? icon('check') : '', role: 'checkbox', 'aria-checked': String(done), tabindex: readonly ? -1 : 0,
-      onclick: async (e) => { e.stopPropagation(); if (readonly) return; await Habits.toggle(h, key, map, e.currentTarget); onChange(); }, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } } });
+      onclick: async (e) => { e.stopPropagation(); if (readonly) return; await Habits.toggle(h, key, map); onChange(); }, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } } });
   }
   function row(h, map, key = Jalali.todayKey(), readonly = false) {
     const st = Habits.stats(h, map);
@@ -5711,7 +5572,6 @@ const HabitsView = (() => {
         el('span.hchip', { text: I18n.t('ht_' + h.type) + (h.target > 1 ? ` · ${I18n.num(h.target)} ${h.unit || ''}`.trimEnd() : '') }),
         el('span.streak-flame' + (st.streak ? '' : '.cold'), { title: I18n.t('currentStreak') }, [el('span', { html: icon('fire') }), el('span', { text: `${I18n.num(st.streak)} ${I18n.t('streakDays')}` })]),
         el('span.hchip', { title: I18n.t('rateHint') }, [el('span', { html: icon('check') }), el('span', { text: `${I18n.num(st.rate)}% ${I18n.t('successRate')}` })]),
-        el('span.hchip.hxp', { title: I18n.t('habitXpHint'), text: `+${I18n.num(Habits.xpFor(h, map))} XP` }),
       ]),
     ]));
     wrap.appendChild(weekStrip(h, map));
@@ -5729,7 +5589,7 @@ const HabitsView = (() => {
       strip.appendChild(el('.hday' + (key === today ? '.is-today' : '') + (lv === -1 ? '.skip' : '') + (sched ? '' : '.off'), {
         title: Jalali.label(key),
         style: lv > 0 ? { background: `color-mix(in srgb, ${h.color} ${LV[lv]}%, transparent)` } : {},
-        onclick: sched ? async (e) => { e.stopPropagation(); await Habits.toggle(h, key, map, e.currentTarget); refresh(); } : null }));
+        onclick: sched ? async (e) => { e.stopPropagation(); await Habits.toggle(h, key, map); refresh(); } : null }));
     }
     return strip;
   }
@@ -5826,8 +5686,8 @@ const HabitsView = (() => {
       el('.row.gap-2.mb-4', {}, [el('button.btn.sm.ghost', { html: icon('chevR') + '<span>' + I18n.t('nav_habits') + '</span>', onclick: () => Router.go('habits') })]),
       el('.row.gap-4.wrap', {}, [
         el('.habit-ic', { style: { background: `color-mix(in srgb, ${h.color} 16%, transparent)`, width: '60px', height: '60px', fontSize: '28px', borderRadius: '17px' }, text: h.icon || '🎯' }),
-        el('.col.grow.gap-2', { style: { minWidth: '180px' } }, [el('.row.gap-2.wrap', {}, [el('.h2', { text: h.title }), el('.chip', { text: I18n.t('ht_' + h.type) }), h.unit ? el('.chip', { text: h.unit }) : null,
-          el('.chip.hxp', { title: I18n.t('habitXpHint'), text: `+${I18n.num(Habits.xpFor(h, map))} XP` })]), h.description ? el('.small.dim', { text: h.description }) : null]),
+        el('.col.grow.gap-2', { style: { minWidth: '180px' } }, [el('.row.gap-2.wrap', {}, [el('.h2', { text: h.title }), el('.chip', { text: I18n.t('ht_' + h.type) }), h.unit ? el('.chip', { text: h.unit }) : null]),
+          h.description ? el('.small.dim', { text: h.description }) : null]),
         todayControl(h, map, () => Router.render()),
       ]),
       el('.row.wrap.gap-2.mt-4', {}, [
@@ -6855,7 +6715,6 @@ const Focus = (() => {
       S.done++;
       await record(total(), false);
       UI.toast('success', I18n.t('sessionDone'));
-      await XP.award(15, 'focus', S.taskId || null);
     }
     S.phaseStart = null;
     advance();
@@ -7411,18 +7270,17 @@ const HistoryView = (() => {
    15v. Stats — global analytics engine (trends, moving average, records)
    ------------------------------------------------------------------------- */
 const Stats = (() => {
-  /** One row per day joining tasks, XP, focus, habits, finance and health. */
+  /** One row per day joining tasks, focus, habits, finance and health. */
   async function collect(days) {
     const set = new Set(days);
-    const tasks = await DB.all('tasks'), xp = await DB.all('xpLog'), focus = await DB.all('focus');
+    const tasks = await DB.all('tasks'), focus = await DB.all('focus');
     const hrecs = await DB.all('habitRecords'), txs = await DB.all('transactions');
     const base = {};
-    days.forEach(k => base[k] = { key: k, done: 0, created: 0, xp: 0, focusSec: 0, habits: 0, income: 0, expense: 0 });
+    days.forEach(k => base[k] = { key: k, done: 0, created: 0, focusSec: 0, habits: 0, income: 0, expense: 0 });
     tasks.forEach(t => {
       if (t.completed && t.completedAt) { const k = Jalali.keyFromDate(new Date(t.completedAt)); if (base[k]) base[k].done++; }
       if (t.date && base[t.date]) base[t.date].created++;
     });
-    xp.forEach(r => { if (base[r.date]) base[r.date].xp += (r.amount || 0); });
     focus.forEach(f => { if (base[f.date]) base[f.date].focusSec += (f.seconds || 0); });
     hrecs.forEach(r => { if (r.done && base[r.date]) base[r.date].habits++; });
     txs.forEach(t => { if (!base[t.date]) return;
@@ -7490,14 +7348,12 @@ const StatsView = (() => {
     /* Headline tiles */
     const totDone = rows.reduce((s, r) => s + r.done, 0);
     const totCreated = rows.reduce((s, r) => s + r.created, 0);
-    const totXp = rows.reduce((s, r) => s + r.xp, 0);
     const totFocus = rows.reduce((s, r) => s + r.focusSec, 0) / 3600;
     const totHabits = rows.reduce((s, r) => s + r.habits, 0);
     const income = rows.reduce((s, r) => s + r.income, 0), expense = rows.reduce((s, r) => s + r.expense, 0);
     const tiles = [
       { cap: I18n.t('tasksDone'), num: I18n.num(totDone), ic: 'check', color: 'var(--green)' },
       { cap: I18n.t('completion'), num: I18n.num(totCreated ? Math.round(totDone / totCreated * 100) : 0) + '%', ic: 'stats', color: 'var(--blue)' },
-      { cap: I18n.t('xpEarnedStat'), num: I18n.num(totXp), ic: 'bolt', color: 'var(--orange)' },
       { cap: I18n.t('focusHours'), num: I18n.num(totFocus.toFixed(1)), ic: 'clock', color: 'var(--brand)' },
       { cap: I18n.t('habitsRate'), num: I18n.num(totHabits), ic: 'habits', color: 'var(--teal)' },
       { cap: I18n.t('goalsCompleted'), num: I18n.num(goals.filter(g => g.status === 'completed').length), ic: 'goals', color: 'var(--pink)' },
@@ -7518,12 +7374,6 @@ const StatsView = (() => {
       el('.label', { text: I18n.t('movingAvg') }),
       Charts.line(Stats.movingAvg(rows, 'done').filter((_, i) => i % step === 0).map(p => ({ label: dayLbl(p.label), value: p.value })),
         { color: 'var(--brand)', fmt: v => I18n.num(v) }),
-    ]));
-
-    /* XP trend */
-    wrap.appendChild(el('.card.pad.col.gap-4', {}, [
-      el('.h4', { text: I18n.t('xpTrend') }),
-      Charts.bars(shown.map(r => ({ label: dayLbl(r.key), segments: [{ value: r.xp, color: 'var(--brand)' }] })), { fmt: v => I18n.num(v) }),
     ]));
 
     /* Category breakdown (completed tasks) + income vs expense */
@@ -7550,9 +7400,6 @@ const StatsView = (() => {
       (income || expense) ? Charts.legend([{ label: I18n.t('income'), value: income, color: 'var(--green)' }, { label: I18n.t('expense'), value: expense, color: 'var(--red)' }], v => Finance.fmt(v)) : null,
     ]));
     wrap.appendChild(two);
-
-    /* Achievements */
-    wrap.appendChild(await Achievements.card());
 
     /* Records & insights */
     const recRow = (ic, color, label, value) => el('.rec-row', {}, [
@@ -7678,120 +7525,6 @@ const Search = (() => {
   return { query, recent, addRecent, clearRecent, hl, snippet, score, fuzzy };
 })();
 
-/* ---------------------------------------------------------------------------
-   15y. Achievements — unlock engine driven by a live stats snapshot
-   ------------------------------------------------------------------------- */
-const Achievements = (() => {
-  const DEFS = [
-    { id: 'first_task',        icon: '🌱', xp: 20,   goal: 1,    val: s => s.tasksDone },
-    { id: 'tasks_100',         icon: '💯', xp: 100,  goal: 100,  val: s => s.tasksDone },
-    { id: 'tasks_1000',        icon: '🏅', xp: 500,  goal: 1000, val: s => s.tasksDone },
-    { id: 'first_goal',        icon: '🎯', xp: 20,   goal: 1,    val: s => s.goalsCreated },
-    { id: 'goal_done',         icon: '🏆', xp: 80,   goal: 1,    val: s => s.goalsDone },
-    { id: 'first_habit',       icon: '🔁', xp: 20,   goal: 1,    val: s => s.habitsCreated },
-    { id: 'streak_7',          icon: '🔥', xp: 50,   goal: 7,    val: s => s.bestStreak },
-    { id: 'streak_30',         icon: '⚡', xp: 150,  goal: 30,   val: s => s.bestStreak },
-    { id: 'streak_100',        icon: '💎', xp: 400,  goal: 100,  val: s => s.bestStreak },
-    { id: 'year_consistency',  icon: '📅', xp: 1000, goal: 365,  val: s => s.bestStreak },
-    { id: 'xp_1000',           icon: '⭐', xp: 50,   goal: 1000, val: s => s.totalXp },
-    { id: 'xp_10000',          icon: '🌟', xp: 300,  goal: 10000, val: s => s.totalXp },
-    { id: 'first_note',        icon: '📝', xp: 20,   goal: 1,    val: s => s.notesCount },
-    { id: 'first_budget',      icon: '💰', xp: 30,   goal: 1,    val: s => s.budgetsCount },
-    { id: 'first_review',      icon: '🗒️', xp: 40,   goal: 1,    val: s => s.daysClosed },
-    { id: 'focus_10',          icon: '🍅', xp: 60,   goal: 10,   val: s => s.focusSessions },
-    { id: 'focus_100',         icon: '🧠', xp: 250,  goal: 100,  val: s => s.focusSessions },
-  ];
-  let busy = false;
-
-  async function snapshot() {
-    const [tasks, goals, habits, notes, budgets, days, focus, byHabit] = await Promise.all([
-      DB.all('tasks'), DB.all('goals'), DB.all('habits'), DB.all('notes'), DB.all('budgets'), DB.all('days'), DB.all('focus'),
-      Habits.allRecordsMaps()]);   // shared + cached, so stats pages load it once
-    let bestStreak = 0;
-    for (const h of habits) { const st = Habits.stats(h, byHabit[h.id] || {}); if (st.best > bestStreak) bestStreak = st.best; }
-    return {
-      tasksDone: tasks.filter(t => t.completed).length,
-      goalsCreated: goals.length,
-      goalsDone: goals.filter(g => g.status === 'completed').length,
-      habitsCreated: habits.length,
-      bestStreak,
-      totalXp: await XP.total(),
-      notesCount: notes.length,
-      budgetsCount: budgets.filter(b => b.kind !== 'goal').length,
-      daysClosed: days.filter(d => d.closed).length,
-      focusSessions: focus.length,
-    };
-  }
-  /** Unlock anything newly earned. Re-entrancy guarded — awarding XP fires data:change. */
-  async function check({ silent = false } = {}) {
-    if (busy) return [];
-    busy = true;
-    try {
-      const s = await snapshot();
-      const have = new Set((await DB.all('achievements')).map(a => a.id));
-      const newly = [];
-      for (const d of DEFS) {
-        if (have.has(d.id) || d.val(s) < d.goal) continue;
-        await DB.put('achievements', { id: d.id, unlockedAt: Date.now(), xp: d.xp });
-        await XP.award(d.xp, 'achievement', d.id);
-        newly.push(d);
-      }
-      if (newly.length) {
-        if (!silent) newly.forEach(d => UI.toast('success', `${d.icon} ${I18n.t('ach_' + d.id)}`, I18n.t('achUnlocked')));
-        Bus.emit('achievement:unlock', newly);
-      }
-      return newly;
-    } finally { busy = false; }
-  }
-  /** Unlocked badges only — reads the achievements store and nothing else.
-      Used where progress bars aren't shown (e.g. the dashboard), so the page
-      never pays for a full stats snapshot. */
-  async function unlockedList() {
-    const rows = await DB.all('achievements');
-    const byId = {}; DEFS.forEach(d => byId[d.id] = d);
-    return rows.filter(r => byId[r.id])
-      .map(r => ({ ...byId[r.id], unlocked: true, unlockedAt: r.unlockedAt }))
-      .sort((a, b) => b.unlockedAt - a.unlockedAt);
-  }
-  const total = () => DEFS.length;
-
-  /** All definitions merged with unlock state + progress toward the next tier. */
-  async function all() {
-    const [s, rows] = await Promise.all([snapshot(), DB.all('achievements')]);
-    const map = {}; rows.forEach(r => map[r.id] = r);
-    return DEFS.map(d => {
-      const cur = d.val(s);
-      return { ...d, unlocked: !!map[d.id], unlockedAt: map[d.id] ? map[d.id].unlockedAt : null,
-        current: cur, pct: Math.min(100, Math.round(cur / d.goal * 100)) };
-    });
-  }
-  /** Reusable grid — used by the stats page and the dashboard. */
-  function grid(list, { limit } = {}) {
-    const g = el('.ach-grid');
-    (limit ? list.slice(0, limit) : list).forEach(a => g.appendChild(el('.ach-item' + (a.unlocked ? '.on' : '.off'), { title: I18n.t('achd_' + a.id) }, [
-      el('.ach-badge', { text: a.icon }),
-      el('.ach-name', { text: I18n.t('ach_' + a.id) }),
-      el('.ach-desc', { text: I18n.t('achd_' + a.id) }),
-      a.unlocked
-        ? el('.ach-date', { text: Jalali.label(Jalali.keyFromDate(new Date(a.unlockedAt))) })
-        : el('.ach-desc', { text: `${I18n.num(a.current)} / ${I18n.num(a.goal)}` }),
-      el('.ach-xp', { text: `+${I18n.num(a.xp)} XP` }),
-    ])));
-    return g;
-  }
-  async function card() {
-    const list = await all();
-    const earned = list.filter(a => a.unlocked).length;
-    return el('.card.pad.col.gap-4', {}, [
-      el('.row.between.wrap.gap-2', {}, [
-        el('.h4', { text: I18n.t('achievements') }),
-        el('.chip', {}, [el('span', { html: icon('trophy') }), el('span', { text: `${I18n.num(earned)}/${I18n.num(list.length)}` })]),
-      ]),
-      grid(list.slice().sort((a, b) => (b.unlocked ? 1 : 0) - (a.unlocked ? 1 : 0) || b.pct - a.pct)),
-    ]);
-  }
-  return { DEFS, snapshot, check, all, unlockedList, total, grid, card };
-})();
 
 /* ---------------------------------------------------------------------------
    15z. Reviews — auto-generated daily / weekly / monthly retrospectives
@@ -7828,13 +7561,16 @@ const Reviews = (() => {
   /** Everything measurable about a period, computed fresh from the stores. */
   async function compute(kind, key) {
     const days = daysOf(kind, key), set = new Set(days);
-    const [tasks, xp, focus, hrecs, habits, txs, goals] = await Promise.all([
-      DB.all('tasks'), DB.all('xpLog'), DB.all('focus'), DB.all('habitRecords'), DB.all('habits'), DB.all('transactions'), DB.all('goals')]);
+    const [tasks, focus, hrecs, habits, txs, goals] = await Promise.all([
+      DB.all('tasks'), DB.all('focus'), DB.all('habitRecords'), DB.all('habits'), DB.all('transactions'), DB.all('goals')]);
 
     const inPeriod = tasks.filter(t => t.date && set.has(t.date));
     const done = inPeriod.filter(t => t.completed);
     const missed = inPeriod.filter(t => !t.completed);
-    const xpSum = xp.filter(r => set.has(r.date)).reduce((s, r) => s + (r.amount || 0), 0);
+    // Used only by hasData. This replaces an `xpSum > 0` test: XP is gone, and
+    // habit completions were the thing that test was really standing in for —
+    // without it a period of nothing but habits reports as empty.
+    const habitDone = hrecs.filter(r => r.done && set.has(r.date)).length;
     const focusSec = focus.filter(f => set.has(f.date)).reduce((s, f) => s + (f.seconds || 0), 0);
     const focusCount = focus.filter(f => set.has(f.date)).length;
 
@@ -7877,12 +7613,12 @@ const Reviews = (() => {
       days, doneList: done, missedList: missed,
       total: inPeriod.length, doneCount: done.length,
       completion: inPeriod.length ? Math.round(done.length / inPeriod.length * 100) : 0,
-      xp: xpSum, focusHours: +(focusSec / 3600).toFixed(1), focusCount,
+      focusHours: +(focusSec / 3600).toFixed(1), focusCount,
       bestDay: best && best.done ? best : null,
       habitRows, goalProgress, goalsDone,
       health: { sleep: avg(health.sleep), mood: avg(health.mood), energy: avg(health.energy) },
       finance: { income, expense, net: income - expense },
-      hasData: inPeriod.length > 0 || xpSum > 0 || periodTx.length > 0 || focusCount > 0,
+      hasData: inPeriod.length > 0 || habitDone > 0 || periodTx.length > 0 || focusCount > 0,
     };
   }
 
@@ -7931,7 +7667,6 @@ const ReviewsView = (() => {
     const tiles = [
       { cap: I18n.t('overallProductivity'), num: I18n.num(data.completion) + '%', ic: 'stats', color: 'var(--green)' },
       { cap: I18n.t('completedTasks'), num: `${I18n.num(data.doneCount)}/${I18n.num(data.total)}`, ic: 'check', color: 'var(--blue)' },
-      { cap: I18n.t('xpEarnedStat'), num: I18n.num(data.xp), ic: 'bolt', color: 'var(--orange)' },
       { cap: I18n.t('focusHours'), num: I18n.num(data.focusHours), ic: 'clock', color: 'var(--brand)' },
     ];
     const g = el('.grid.g-4');
@@ -9010,11 +8745,6 @@ async function boot() {
   // Dashboard reflects data created elsewhere; Today/Settings self-manage their own refresh.
   Bus.on('data:change', debounce(() => { if (Router.current() === 'dashboard') Router.render(); }, 600));
 
-  // Achievements re-evaluate after data settles. Awarding XP itself fires
-  // data:change, so the engine guards against re-entrancy internally.
-  Bus.on('data:change', debounce(() => { Achievements.check().catch(() => {}); }, 1800));
-  Achievements.check({ silent: true }).catch(() => {});
-
   // App lock must be armed before anything else becomes reachable.
   await Lock.init();
   await AI.load();   // config only — no network call is ever made at startup.
@@ -9037,10 +8767,10 @@ document.addEventListener('DOMContentLoaded', boot);
 
 /* Public surface (dev console / future modules) */
 return { Bus, Prefs, I18n, Jalali, Theme, DB, UI, Router, Layout, Command, Views, Dashboard, Settings, PWA,
-  XP, Tasks, TaskUI, Today, Week, Month, Goals, GoalsView, Roadmap, Habits, HabitsView, Markdown, Notes, NotesView, Charts, Finance, FinanceView,
-  Focus, FocusView, Health, HealthView, History, HistoryView, Stats, StatsView, Search, Achievements,
+  Tasks, TaskUI, Today, Week, Month, Goals, GoalsView, Roadmap, Habits, HabitsView, Markdown, Notes, NotesView, Charts, Finance, FinanceView,
+  Focus, FocusView, Health, HealthView, History, HistoryView, Stats, StatsView, Search,
   Reviews, ReviewsView, Notify, Lock, Recovery, Insights, AI, AssistantView,
-  el, $, $$, icon, uid, debounce, version: '1.0.0-phase12' };
+  el, $, $$, icon, uid, debounce, version: '1.1.0-rework-p1' };
 })();
 
 window.App = App;
