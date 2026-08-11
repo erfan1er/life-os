@@ -1581,7 +1581,7 @@ const Prefs = (() => {
   const KEY = 'lifeos.prefs';
   const defaults = {
     theme: 'system', lang: 'fa', accent: '#7C5CFC', density: 'compact',
-    lastPage: 'dashboard', sidebarCollapsed: false, weekStart: 0, timeFormat: '24',
+    lastPage: 'today', sidebarCollapsed: false, weekStart: 0, timeFormat: '24',
     dateSystem: 'jalali', currency: 'IRT', fontSize: 100, animations: true,
     plannerName: 'Life OS', onboarded: false, browserNotif: false,
     pomoWork: 25, pomoBreak: 5, pomoLong: 15, pomoLongEvery: 4, pomoAuto: false,
@@ -1710,7 +1710,8 @@ const I18n = (() => {
       nav_goals: 'اهداف', nav_roadmap: 'نقشه راه', nav_habits: 'عادت‌ها', nav_notes: 'یادداشت‌ها',
       nav_finance: 'مالی', nav_history: 'تاریخچه', nav_stats: 'آمار', nav_focus: 'تمرکز',
       nav_health: 'سلامت', nav_settings: 'تنظیمات',
-      sec_main: 'اصلی', sec_manage: 'مدیریت', sec_insight: 'تحلیل', sec_system: 'سیستم',
+      nav_plan: 'برنامه', nav_reports: 'گزارش',
+      sec_main: 'اصلی', sec_more: 'بخش‌های دیگر', sec_system: 'سیستم',
       search: 'جستجو', search_ph: 'جستجو در همه‌چیز…',
       greeting_morning: 'صبح بخیر', greeting_noon: 'ظهر بخیر', greeting_afternoon: 'عصر بخیر',
       greeting_evening: 'عصر بخیر', greeting_night: 'شب بخیر',
@@ -1976,7 +1977,8 @@ const I18n = (() => {
       nav_goals: 'Goals', nav_roadmap: 'Roadmap', nav_habits: 'Habits', nav_notes: 'Notes',
       nav_finance: 'Finance', nav_history: 'History', nav_stats: 'Statistics', nav_focus: 'Focus',
       nav_health: 'Health', nav_settings: 'Settings',
-      sec_main: 'Main', sec_manage: 'Manage', sec_insight: 'Insights', sec_system: 'System',
+      nav_plan: 'Plan', nav_reports: 'Reports',
+      sec_main: 'Main', sec_more: 'Other areas', sec_system: 'System',
       search: 'Search', search_ph: 'Search everything…',
       greeting_morning: 'Good morning', greeting_noon: 'Good noon', greeting_afternoon: 'Good afternoon',
       greeting_evening: 'Good evening', greeting_night: 'Good night',
@@ -2731,19 +2733,26 @@ const Router = (() => {
   const routes = new Map();
   let current = null, currentKey = null;
   function register(name, def) { routes.set(name, def); }
-  function go(name, params) { const target = routes.has(name) ? name : 'dashboard';
+  /* Home is Today. Every fallback below used to say 'dashboard'; they move
+     together with the Prefs.lastPage migration in boot(), because a half-done
+     rename means routes.get(...) returns undefined and the view renders blank. */
+  const HOME = 'today';
+  function go(name, params) { const target = routes.has(name) ? name : HOME;
     location.hash = '#/' + target + (params ? '?' + new URLSearchParams(params) : ''); }
   function parse() { const h = location.hash.replace(/^#\/?/, ''); const [path, qs] = h.split('?');
-    return { name: path || Prefs.get('lastPage') || 'dashboard', params: Object.fromEntries(new URLSearchParams(qs || '')) }; }
+    return { name: path || Prefs.get('lastPage') || HOME, params: Object.fromEntries(new URLSearchParams(qs || '')) }; }
   async function render() {
     const { name, params } = parse();
-    const def = routes.get(name) || routes.get('dashboard');
+    const def = routes.get(name) || routes.get(HOME);
     /* Same page + params → "soft" data refresh: build off-DOM first (no blank
        flash), keep scroll position, skip entrance animations. Real navigation
        keeps the animated top-of-page render. */
     const key = name + '?' + new URLSearchParams(params);
     const soft = key === currentKey;
-    current = name; currentKey = key; Prefs.set('lastPage', name);
+    // Never persist a redirect stub as "last page" — it would keep bouncing
+    // every future cold start through the redirect instead of settling.
+    current = name; currentKey = key;
+    if (name !== 'dashboard') Prefs.set('lastPage', name);
     const view = $('#view'); if (!view) return;
     const prevScroll = view.scrollTop;
     const inner = el('.view-inner' + (soft ? '.soft' : ''));
@@ -2758,33 +2767,41 @@ const Router = (() => {
     view.scrollTop = soft ? prevScroll : 0;
     Bus.emit('route:change', { name, params });
   }
-  function init() { window.addEventListener('hashchange', render); if (!location.hash) go(Prefs.get('lastPage') || 'dashboard'); else render(); }
-  return { register, go, render, init, current: () => current };
+  function init() { window.addEventListener('hashchange', render); if (!location.hash) go(Prefs.get('lastPage') || HOME); else render(); }
+  return { register, go, render, init, current: () => current, HOME };
 })();
 
 /* ---------------------------------------------------------------------------
    9. Layout — sidebar, topbar, bottom nav
    ------------------------------------------------------------------------- */
 const Layout = (() => {
+  /* Four primary areas, everything else one tap away. Fifteen sidebar entries
+     in three labelled sections is a map, not a menu — and on a phone eleven of
+     them were only reachable through a sheet anyway.
+
+     Week+Month became one "plan" page, and Stats+Reviews+History one "reports"
+     page: each is a segmented control over views that already existed. Their
+     individual routes stay registered (deep links, and Notify/Search navigate
+     straight to them), they just don't each own a nav slot. */
   const NAV = [
     { section: 'sec_main', items: [
-      { name: 'dashboard', icon: 'dashboard' }, { name: 'today', icon: 'today' },
-      { name: 'week', icon: 'week' }, { name: 'month', icon: 'month' },
+      { name: 'today', icon: 'today' }, { name: 'plan', icon: 'week' },
+      { name: 'finance', icon: 'finance' }, { name: 'reports', icon: 'stats' },
     ]},
-    { section: 'sec_manage', items: [
-      { name: 'goals', icon: 'goals' }, { name: 'roadmap', icon: 'roadmap' },
-      { name: 'habits', icon: 'habits' }, { name: 'notes', icon: 'notes' }, { name: 'finance', icon: 'finance' },
-    ]},
-    { section: 'sec_insight', items: [
+    { section: 'sec_more', items: [
+      { name: 'habits', icon: 'habits' }, { name: 'goals', icon: 'goals' },
+      { name: 'roadmap', icon: 'roadmap' }, { name: 'notes', icon: 'notes' },
       { name: 'health', icon: 'health' }, { name: 'focus', icon: 'focus' },
-      { name: 'assistant', icon: 'sparkles' }, { name: 'reviews', icon: 'review' },
-      { name: 'history', icon: 'history' }, { name: 'stats', icon: 'stats' },
+      { name: 'assistant', icon: 'sparkles' },
     ]},
   ];
-  /* Bottom bar: three pages, a central add button, and "more". Everything not
-     in TABS is one tap away in the More sheet, which is built from NAV so it
-     can never drift out of sync with the sidebar. */
-  const TABS = ['dashboard', 'today', 'habits'];
+  /* Bottom bar = the four primary areas + "more". Everything not in TABS is one
+     tap away in the More sheet, which is built from NAV so it can never drift
+     out of sync with the sidebar. */
+  const TABS = ['today', 'plan', 'finance', 'reports'];
+  /* Sub-routes reachable inside a primary page. Without this a deep link to
+     #/week would light up "More" instead of "Plan". */
+  const PARENT = { week: 'plan', month: 'plan', stats: 'reports', reviews: 'reports', history: 'reports' };
 
   function build() {
     const app = $('#app');
@@ -2848,14 +2865,11 @@ const Layout = (() => {
     const tabItem = (n) => el('.bn-item', { dataset: { nav: n }, onclick: () => Router.go(n) }, [
       el('.bn-ic', { html: icon(navIconFor(n)) }), el('span', { text: I18n.t('nav_' + n) }),
     ]);
+    /* No centre "+" any more. Task capture moved to the always-present quick-add
+       input on the day page, which is where essentially all of it happens; the
+       other pages each carry their own add button in the page header. */
     bn.append(
-      tabItem('dashboard'), tabItem('today'),
-      // Centre add button — replaces the floating FAB, which needed its own
-      // magic offset above the bar and drifted on iOS.
-      el('.bn-item.bn-add', { 'aria-label': I18n.t('addTask'), onclick: addForRoute }, [
-        el('.bn-plus', { html: icon('plus') }),
-      ]),
-      tabItem('habits'),
+      ...TABS.map(tabItem),
       el('.bn-item.bn-more', { dataset: { nav: '__more' }, onclick: moreSheet }, [
         el('.bn-ic', { html: icon('menu') }), el('span', { text: I18n.t('more') }),
       ]),
@@ -2868,7 +2882,8 @@ const Layout = (() => {
 
   function navIconFor(name) { for (const g of NAV) for (const it of g.items) if (it.name === name) return it.icon; return 'settings'; }
 
-  /** The centre "+" adds whatever the page you're on is about. */
+  /** Adds whatever the page you're on is about. Used by the page-header add
+      buttons now that the bottom bar's centre "+" is gone. */
   function addForRoute() {
     const back = () => Router.render();
     switch (Router.current()) {
@@ -2878,7 +2893,7 @@ const Layout = (() => {
       case 'finance': return FinanceView.txEditor(null, back);
       default: return TaskUI.openEditor(null, () => {
         const r = Router.current();
-        if (r === 'today' || r === 'dashboard' || r === 'week' || r === 'month') Router.render();
+        if (r === 'today' || r === 'plan' || r === 'week' || r === 'month') Router.render();
       }, { kind: 'daily', date: Jalali.todayKey() });
     }
   }
@@ -2973,11 +2988,13 @@ const Layout = (() => {
     ]);
   }
   function setActive(name) {
-    $$('.nav-item[data-nav]').forEach(n => n.classList.toggle('active', n.dataset.nav === name));
-    // "More" lights up for every page that isn't one of the three tabs, so the
-    // bar always shows where you are.
+    // A sub-route highlights its parent page (#/week lights "Plan").
+    const eff = PARENT[name] || name;
+    $$('.nav-item[data-nav]').forEach(n => n.classList.toggle('active', n.dataset.nav === eff));
+    // "More" lights up for every page that isn't a primary tab, so the bar
+    // always shows where you are.
     $$('.bn-item[data-nav]').forEach(n => n.classList.toggle('active',
-      n.dataset.nav === '__more' ? !TABS.includes(name) : n.dataset.nav === name));
+      n.dataset.nav === '__more' ? !TABS.includes(eff) : n.dataset.nav === eff));
   }
   function setTitle(txt) { const t = $('#tbTitle'); if (t) t.textContent = txt; document.title = txt + ' · ' + I18n.t('appName'); }
   function toggleCollapse() { const c = !Prefs.get('sidebarCollapsed'); Prefs.set('sidebarCollapsed', c);
@@ -2991,7 +3008,7 @@ const Layout = (() => {
     p.querySelector('span').textContent = navigator.onLine ? I18n.t('online') : I18n.t('offline');
     p.querySelector('.dot').style.background = navigator.onLine ? 'var(--green)' : 'var(--text-3)'; }
 
-  return { build, setActive, setTitle, refreshNet, refreshBadge, NAV };
+  return { build, setActive, setTitle, refreshNet, refreshBadge, addForRoute, NAV, TABS };
 })();
 
 /* ---------------------------------------------------------------------------
@@ -3188,294 +3205,6 @@ const Views = (() => {
   }
 
   return { emptyState, loadingState, errorState, comingSoon, pageHeader, field, section, rowItem, advanced, picker, swatches };
-})();
-
-/* ---------------------------------------------------------------------------
-   12. Dashboard (foundation shell — live clock, Jalali date, storage)
-   ------------------------------------------------------------------------- */
-const Dashboard = (() => {
-  let clockTimer = null;
-  function greeting() {
-    const h = new Date().getHours();
-    if (h < 5) return I18n.t('greeting_night'); if (h < 12) return I18n.t('greeting_morning');
-    if (h < 14) return I18n.t('greeting_noon'); if (h < 18) return I18n.t('greeting_afternoon');
-    if (h < 21) return I18n.t('greeting_evening'); return I18n.t('greeting_night');
-  }
-  function remainingDaysInYear(j) {
-    let days = 0; for (let m = 1; m <= 12; m++) days += Jalali.monthLen(j.jy, m);
-    let passed = 0; for (let m = 1; m < j.jm; m++) passed += Jalali.monthLen(j.jy, m); passed += j.jd;
-    return days - passed;
-  }
-  async function render() {
-    const j = Jalali.fromDate();
-    const lang = I18n.get();
-    const dateStr = `${I18n.num(j.jd)} ${Jalali.months[lang][j.jm - 1]} ${I18n.num(j.jy)}`;
-    const wd = Jalali.weekdaysLong[lang][j.wd];
-    const counts = await DB.counts();
-    const totalRecords = Object.values(counts).reduce((a, b) => a + b, 0);
-
-    // Real "today" signals
-    const todayKey = Jalali.todayKey();
-    const todayTasks = (await Tasks.forDate(todayKey)).filter(t => t.kind !== 'weekly');
-    const doneToday = todayTasks.filter(t => t.completed).length;
-    const overdueToday = todayTasks.filter(t => Tasks.isOverdue(t)).length;
-    const activeToday = todayTasks.filter(t => t.timerStartedAt).length;
-    const todayPct = todayTasks.length ? Math.round((doneToday / todayTasks.length) * 100) : 0;
-
-    const wrap = el('.col.gap-6.dash');
-
-    /* Hero */
-    const hero = el('.card.pad.hero', {}, [
-      el('.hero-orb.o1'), el('.hero-orb.o2'),
-      el('.row.between.wrap.gap-4', {}, [
-        el('.col.gap-2', {}, [
-          el('.hero-chips', {}, [
-            el('.chip', {}, [el('span', { html: icon('today') }), el('span', { text: wd })]),
-            el('.chip', {}, [el('span', { text: dateStr })]),
-            el('.chip', {}, [el('span', { text: `${I18n.t('weekNo')} ${I18n.num(Jalali.weekOfYear(todayKey))}` })]),
-          ]),
-          el('.h1', { html: `${greeting()} 👋` }),
-        ]),
-        el('.col', { style: { alignItems: 'center', gap: '4px' } }, [
-          el('.dash-clock', { id: 'dashClock' }, '—'),
-          el('.chip', {}, [el('span', { html: icon('sun') }), el('span', { text: `${I18n.num(remainingDaysInYear(j))} ${I18n.t('remainingDays')}` })]),
-        ]),
-      ]),
-    ]);
-    wrap.appendChild(hero);
-
-    /* First run: an empty dashboard used to say nothing about where to begin —
-       the Goals and Habits widgets are hidden when empty, so a new user saw
-       four zeros and no hint that those pages exist. Prefs.onboarded and the
-       welcome strings had been sitting unused since the first version. */
-    if (!Prefs.get('onboarded') && !counts.tasks && !counts.habits && !counts.goals) {
-      const card = el('.card.pad.col.gap-3');
-      const step = (labelKey, ic, fn) => el('.dash-goal.clickable', { onclick: fn }, [
-        el('.w-ic', { html: icon(ic) }), el('.dg-t.grow', { text: I18n.t(labelKey) }), el('.dim', { html: icon('chevL') }),
-      ]);
-      const done = async () => { Prefs.set('onboarded', true); Router.render(); };
-      card.append(
-        el('.row.between.gap-3', {}, [
-          el('.col', {}, [el('.h4', { text: I18n.t('firstRunTitle') }), el('.small.dim', { text: I18n.t('firstRunSub') })]),
-          el('button.btn.sm.ghost', { text: I18n.t('dismiss'), onclick: done }),
-        ]),
-        step('firstRunTask', 'today', () => TaskUI.openEditor(null, done, { kind: 'daily', date: todayKey })),
-        step('firstRunHabit', 'habits', () => { Prefs.set('onboarded', true); Router.go('habits'); }),
-        step('firstRunSettings', 'settings', () => { Prefs.set('onboarded', true); Router.go('settings'); }),
-      );
-      wrap.appendChild(card);
-    }
-
-    /* Today progress */
-    wrap.appendChild(el('.grid.g-2', {}, [
-      el('.card.pad.col.gap-4', {}, [
-        el('.row.between', {}, [ el('.h4', { text: I18n.t('todayProgress') }),
-          el('.chip', {}, [ el('span', { html: icon('today') }), el('span', { text: `${I18n.num(doneToday)}/${I18n.num(todayTasks.length)}` }) ]) ]),
-        el('.row.gap-4', {}, [
-          el('.ring', { style: { '--p': todayPct, position: 'relative', width: '64px', height: '64px' } }, [ el('span', { text: I18n.num(todayPct) + '%' }) ]),
-          el('.col.grow.gap-2', {}, [
-            el('.bar', {}, [ el('span.shine', { style: { width: todayPct + '%' } }) ]),
-            el('.row.wrap.gap-2', {}, [
-              el('.chip', {}, [ el('.dot', { style: { background: 'var(--blue)' } }), el('span', { text: `${I18n.t('pending')}: ${I18n.num(todayTasks.length - doneToday)}` }) ]),
-              activeToday ? el('.chip', {}, [ el('.dot', { style: { background: 'var(--brand)' } }), el('span', { text: `${I18n.t('inProgress')}: ${I18n.num(activeToday)}` }) ]) : null,
-              overdueToday ? el('.chip', {}, [ el('.dot', { style: { background: 'var(--red)' } }), el('span', { text: `${I18n.t('overdue')}: ${I18n.num(overdueToday)}` }) ]) : null,
-            ]),
-          ]),
-        ]),
-      ]),
-    ]));
-
-    /* Stat tiles */
-    const tiles = [
-      { cap: I18n.t('todaysTasks'), num: `${I18n.num(doneToday)}/${I18n.num(todayTasks.length)}`, ic: 'today', color: 'var(--blue)', go: 'today' },
-      { cap: I18n.t('inProgress'), num: I18n.num(activeToday), ic: 'focus', color: 'var(--brand)', go: 'today' },
-      { cap: I18n.t('overdue'), num: I18n.num(overdueToday), ic: 'clock', color: overdueToday ? 'var(--red)' : 'var(--text-3)', go: 'today' },
-      { cap: I18n.t('nav_goals'), num: I18n.num(counts.goals), ic: 'goals', color: 'var(--brand)', go: 'goals' },
-    ];
-    const grid = el('.grid.g-4');
-    tiles.forEach(t => grid.appendChild(el('.card.pad.hover.stat.clickable', { style: { '--tile-c': t.color }, onclick: () => Router.go(t.go) }, [
-      el('.row.between', {}, [
-        el('.col', {}, [ el('.cap', { text: t.cap }), el('.num', { text: t.num }), t.sub ? el('.sub', { text: t.sub }) : null ]),
-        el('.stat-ic', { style: { background: `color-mix(in srgb, ${t.color} 15%, transparent)`, color: t.color }, html: icon(t.ic) }),
-      ]),
-    ])));
-    wrap.appendChild(grid);
-
-    /* Widget header helper: colored icon chip + title */
-    const wTitle = (ic, color, text) => el('.row.gap-3', {}, [
-      el('.w-ic', { style: { '--w-c': color }, html: icon(ic) }), el('.h4', { text })]);
-
-    /* Today's tasks widget */
-    const pending = todayTasks.filter(t => !t.completed).slice(0, 5);
-    const taskCard = el('.card.pad.col.gap-4', {}, [
-      el('.row.between', {}, [ wTitle('today', 'var(--blue)', I18n.t('todaysTasks')),
-        el('button.btn.sm.ghost', { html: '<span>' + I18n.t('nav_today') + '</span>' + icon('arrowR'), onclick: () => Router.go('today') }) ]),
-    ]);
-    if (!todayTasks.length) {
-      taskCard.appendChild(Views.emptyState('today', I18n.t('noTasksToday'), I18n.t('noTasksHint'),
-        el('button.btn.add.sm', { html: icon('plus') + '<span>' + I18n.t('addFirstTask') + '</span>', onclick: () => Router.go('today') })));
-    } else if (!pending.length) {
-      taskCard.appendChild(Views.emptyState('check', I18n.t('allDone'), ''));
-    } else {
-      const list = el('.tasklist');
-      pending.forEach(t => list.appendChild(TaskUI.node(t, { onChange: () => Router.render() })));
-      taskCard.appendChild(list);
-    }
-    wrap.appendChild(taskCard);
-
-    /* Active goals widget — progress + deadline at a glance */
-    const dashGoals = await DB.all('goals');
-    const dashActive = dashGoals.filter(g => g.status === 'active' && !g.parentId).slice(0, 4);
-    if (dashActive.length) {
-      const allTasksG = await DB.all('tasks');
-      const gMemo = {};
-      const gCard = el('.card.pad.col.gap-3', {}, [
-        el('.row.between', {}, [wTitle('goals', 'var(--brand)', I18n.t('activeGoals')),
-          el('button.btn.sm.ghost', { html: '<span>' + I18n.t('nav_goals') + '</span>' + icon('arrowR'), onclick: () => Router.go('goals') })]),
-      ]);
-      const gl = el('.col.gap-2');
-      dashActive.forEach(g => {
-        const pct = Goals.progress(g, dashGoals, allTasksG, gMemo);
-        const rem = g.deadline ? Goals.remainingDays(g) : null;
-        const color = g.color || 'var(--brand)';
-        gl.appendChild(el('.dash-goal.clickable', { onclick: () => Router.go('goals', { id: g.id }) }, [
-          el('span.dg-ic', { text: g.icon || '🎯' }),
-          el('.col.grow.gap-1', { style: { minWidth: 0 } }, [
-            el('.row.between.gap-2', {}, [
-              el('.dg-t', { text: g.title }),
-              el('span.mono.small', { style: { fontWeight: '800' }, text: I18n.num(pct) + '%' })]),
-            el('.bar', {}, [el('span', { style: { width: pct + '%', background: color } })]),
-          ]),
-          rem != null ? el('.dchip' + (rem < 0 ? '.late' : rem <= 3 ? '.soon' : ''), { title: Jalali.label(g.deadline) },
-            [el('span', { html: icon('clock') }), el('span', { text: rem < 0 ? I18n.t('overdueGoal') : `${I18n.num(rem)} ${I18n.t('remainingLabel')}` })]) : null,
-        ]));
-      });
-      gCard.appendChild(gl);
-      wrap.appendChild(gCard);
-    }
-
-    /* Today's habits widget */
-    const habits = (await DB.all('habits')).filter(h => h.status !== 'archived');
-    if (habits.length) {
-      const hCard = el('.card.pad.col.gap-3', {}, [
-        el('.row.between', {}, [wTitle('habits', 'var(--green)', I18n.t('todaysHabits')),
-          el('button.btn.sm.ghost', { html: '<span>' + I18n.t('nav_habits') + '</span>' + icon('arrowR'), onclick: () => Router.go('habits') })]),
-      ]);
-      const hl = el('.col.gap-2');
-      for (const h of habits.slice(0, 5)) { const map = await Habits.recordsMap(h.id); hl.appendChild(HabitsView.row(h, map)); }
-      hCard.appendChild(hl);
-      wrap.appendChild(hCard);
-    }
-
-    /* Recent & pinned notes widget */
-    const allNotes = await DB.all('notes');
-    if (allNotes.length) {
-      const recent = allNotes.slice().sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((b.updatedAt || 0) - (a.updatedAt || 0))).slice(0, 4);
-      const nCard = el('.card.pad.col.gap-3', {}, [
-        el('.row.between', {}, [wTitle('notes', 'var(--orange)', I18n.t('recentNotes')),
-          el('button.btn.sm.ghost', { html: '<span>' + I18n.t('nav_notes') + '</span>' + icon('arrowR'), onclick: () => Router.go('notes') })]),
-      ]);
-      const nl = el('.grid.g-2');
-      recent.forEach(n => nl.appendChild(el('.note-card', { onclick: () => NotesView.open(n.id) }, [
-        el('.nt', {}, [n.pinned ? el('span.note-pin', { html: icon('pin') }) : null, el('span', { text: n.title || I18n.t('emptyNote') })]),
-        el('.nsnip', { text: Markdown.plainAny(n.content).slice(0, 90) }),
-      ])));
-      nCard.appendChild(nl);
-      wrap.appendChild(nCard);
-    }
-
-    /* Finance snapshot widget */
-    const finTx = await DB.all('transactions');
-    if (finTx.length) {
-      const jn = Jalali.fromDate();
-      const mk = Finance.monthKeys(jn.jy, jn.jm);
-      const mt = Finance.totals(finTx.filter(t => mk.includes(t.date)));
-      const accts = (await DB.all('accounts')).filter(a => !a.archived);
-      const worth = accts.reduce((s, a) => s + Finance.balance(a, finTx), 0);
-      wrap.appendChild(el('.card.pad.col.gap-3', {}, [
-        el('.row.between', {}, [wTitle('finance', 'var(--teal)', I18n.t('nav_finance')),
-          el('button.btn.sm.ghost', { html: '<span>' + I18n.t('fin_overview') + '</span>' + icon('arrowR'), onclick: () => Router.go('finance') })]),
-        el('.grid.g-3', {}, [
-          el('.col', {}, [el('.cap.dim.xs', { text: I18n.t('income') }), el('.mono', { style: { fontWeight: '800', color: 'var(--green)' }, text: Finance.fmt(mt.income) })]),
-          el('.col', {}, [el('.cap.dim.xs', { text: I18n.t('expense') }), el('.mono', { style: { fontWeight: '800', color: 'var(--red)' }, text: Finance.fmt(mt.expense) })]),
-          el('.col', {}, [el('.cap.dim.xs', { text: I18n.t('netWorth') }), el('.mono', { style: { fontWeight: '800' }, text: Finance.fmt(worth) })]),
-        ]),
-      ]));
-    }
-
-    /* Focus + health snapshot */
-    const fs = await Focus.stats();
-    const todayKeyD = Jalali.todayKey();
-    const dayRec = await DB.get('days', todayKeyD);
-    const ck = (dayRec && dayRec.checkin) || {};
-    const sleepH = Health.sleepHours(ck);
-    const snap = [
-      { cap: I18n.t('sessionsToday'), num: I18n.num(fs.today), ic: 'timer', color: 'var(--brand)', go: 'focus' },
-      { cap: I18n.t('focusHours'), num: I18n.num((fs.todaySec / 3600).toFixed(1)), ic: 'clock', color: 'var(--blue)', go: 'focus' },
-      { cap: I18n.t('sleepHours'), num: sleepH == null ? '—' : I18n.num(sleepH), ic: 'moon', color: 'var(--teal)', go: 'health' },
-      { cap: I18n.t('mood'), num: ck.mood ? Health.MOOD_EMO[ck.mood] : '—', ic: 'health', color: 'var(--pink)', go: 'health' },
-    ];
-    const snapGrid = el('.grid.g-4');
-    snap.forEach(t => snapGrid.appendChild(el('.card.pad.hover.clickable.stat', { style: { '--tile-c': t.color }, onclick: () => Router.go(t.go) }, [
-      el('.row.between', {}, [
-        el('.col', {}, [el('.cap', { text: t.cap }), el('.num', { text: t.num })]),
-        el('.stat-ic', { style: { background: `color-mix(in srgb, ${t.color} 15%, transparent)`, color: t.color }, html: icon(t.ic) }),
-      ]),
-    ])));
-    wrap.appendChild(snapGrid);
-
-    /* Best next action — computed locally */
-    const rankedTop = (await Insights.rankTasks())[0];
-    if (rankedTop) {
-      wrap.appendChild(el('.card.pad.col.gap-3', {}, [
-        el('.row.between', {}, [
-          wTitle('bolt', 'var(--brand)', I18n.t('nextAction')),
-          el('button.btn.sm.ghost', { html: '<span>' + I18n.t('assistant') + '</span>' + icon('arrowR'), onclick: () => Router.go('assistant') }),
-        ]),
-        el('.next-card', {}, [
-          el('.next-rank', { html: icon('bolt') }),
-          el('.col.grow', { style: { minWidth: '0' } }, [
-            el('.h4', { text: rankedTop.task.title }),
-            el('.why-chips', {}, rankedTop.why.slice(0, 3).map(w => el('.why-chip', { text: I18n.t(w) }))),
-          ]),
-          el('button.btn.sm.primary', { text: I18n.t('doItNow'), onclick: () => { Focus.start(rankedTop.task); Router.go('focus'); } }),
-        ]),
-      ]));
-    }
-
-    /* Quick actions */
-    const qa = [
-      { ic: 'today', label: I18n.t('nav_today'), c: 'var(--brand)', run: () => Router.go('today') },
-      { ic: 'goals', label: I18n.t('nav_goals'), c: 'var(--blue)', run: () => Router.go('goals') },
-      { ic: 'habits', label: I18n.t('nav_habits'), c: 'var(--green)', run: () => Router.go('habits') },
-      { ic: 'finance', label: I18n.t('nav_finance'), c: 'var(--teal)', run: () => Router.go('finance') },
-      { ic: 'search', label: I18n.t('search'), c: 'var(--orange)', run: () => Command.open() },
-      { ic: 'settings', label: I18n.t('nav_settings'), c: 'var(--pink)', run: () => Router.go('settings') },
-    ];
-    wrap.appendChild(el('.card.pad', {}, [
-      el('.row.between.mb-4', {}, [wTitle('bolt', 'var(--orange)', I18n.t('quickActions'))]),
-      el('.qa-grid', {}, qa.map(a => el('button.qa-tile', { style: { '--qa-c': a.c }, onclick: a.run }, [
-        el('.qa-ic', { html: icon(a.ic) }), el('span', { text: a.label }),
-      ]))),
-    ]));
-
-    startClock();
-    return wrap;
-  }
-  function startClock() {
-    stopClock();
-    const tick = () => {
-      const n = $('#dashClock'); if (!n) return stopClock();
-      const d = new Date(); const fmt = Prefs.get('timeFormat') === '12';
-      let h = d.getHours(); const m = String(d.getMinutes()).padStart(2, '0'); const s = String(d.getSeconds()).padStart(2, '0');
-      let suffix = ''; if (fmt) { suffix = h < 12 ? ' AM' : ' PM'; h = h % 12 || 12; }
-      n.textContent = I18n.num(`${String(h).padStart(2, '0')}:${m}:${s}`) + suffix;
-    };
-    tick(); clockTimer = setInterval(tick, 1000);
-    Bus.on('route:change', ({ name }) => { if (name !== 'dashboard') stopClock(); });
-  }
-  function stopClock() { if (clockTimer) { clearInterval(clockTimer); clockTimer = null; } }
-  return { render };
 })();
 
 /* ---------------------------------------------------------------------------
@@ -3970,7 +3699,7 @@ const Shortcuts = (() => {
       if (mod && e.key === ',') { e.preventDefault(); Router.go('settings'); }
       // g + <key> chords
       if (e.key.toLowerCase() === 'g') { pendingG = true; setTimeout(() => pendingG = false, 900); return; }
-      if (pendingG) { pendingG = false; const map = { d: 'dashboard', t: 'today', w: 'week', m: 'month', h: 'habits', n: 'notes', f: 'finance', s: 'stats' };
+      if (pendingG) { pendingG = false; const map = { t: 'today', p: 'plan', r: 'reports', w: 'week', m: 'month', h: 'habits', n: 'notes', f: 'finance', s: 'stats' };
         const dest = map[e.key.toLowerCase()]; if (dest) Router.go(dest); }
     });
   }
@@ -3978,8 +3707,9 @@ const Shortcuts = (() => {
   function showHelp() {
     const rows = [
       ['Ctrl / ⌘ + K', I18n.t('cmd_title')], ['Ctrl / ⌘ + ,', I18n.t('settings')],
-      ['G → D', I18n.t('nav_dashboard')], ['G → T', I18n.t('nav_today')], ['G → H', I18n.t('nav_habits')],
-      ['G → F', I18n.t('nav_finance')], ['?', 'Help'],
+      ['G → T', I18n.t('nav_today')], ['G → P', I18n.t('nav_plan')],
+      ['G → F', I18n.t('nav_finance')], ['G → R', I18n.t('nav_reports')],
+      ['G → H', I18n.t('nav_habits')], ['?', 'Help'],
     ];
     UI.modal({ title: '⌨ ' + (I18n.get() === 'fa' ? 'میان‌برها' : 'Shortcuts'),
       body: el('.col.gap-2', {}, rows.map(([k, v]) => el('.row.between', { style: { padding: '6px 0' } }, [
@@ -4309,6 +4039,9 @@ const Today = (() => {
     const content = el('.col.gap-6');
     if (readonly) content.classList.add('locked');
 
+    const first = await firstRunCard();
+    if (first) content.appendChild(first);
+
     const tasks = await Tasks.forDate(key);
     // Weekly tasks are week-scoped: show the whole week's list on every day of that week.
     const wStart = Habits.weekStartKey(key);
@@ -4351,6 +4084,30 @@ const Today = (() => {
   }
 
   const field = Views.field;
+
+  /* Moved here from the dashboard when that page was retired. A brand new user
+     opening an empty day otherwise sees an empty list and no sign that habits,
+     goals or settings exist at all. Returns null once dismissed or once there
+     is any real data, so it costs one cheap count query and then goes away. */
+  async function firstRunCard() {
+    if (Prefs.get('onboarded')) return null;
+    const counts = await DB.counts();
+    if (counts.tasks || counts.habits || counts.goals) return null;
+
+    const done = () => { Prefs.set('onboarded', true); Router.render(); };
+    const step = (labelKey, ic, fn) => el('.dash-goal.clickable', { onclick: fn }, [
+      el('.w-ic', { html: icon(ic) }), el('.dg-t.grow', { text: I18n.t(labelKey) }), el('.dim', { html: icon('chevL') }),
+    ]);
+    return el('.card.pad.col.gap-3', {}, [
+      el('.row.between.gap-3', {}, [
+        el('.col', {}, [el('.h4', { text: I18n.t('firstRunTitle') }), el('.small.dim', { text: I18n.t('firstRunSub') })]),
+        el('button.btn.sm.ghost', { text: I18n.t('dismiss'), onclick: done }),
+      ]),
+      step('firstRunTask', 'today', () => TaskUI.openEditor(null, done, { kind: 'daily', date: Jalali.todayKey() })),
+      step('firstRunHabit', 'habits', () => { Prefs.set('onboarded', true); Router.go('habits'); }),
+      step('firstRunSettings', 'settings', () => { Prefs.set('onboarded', true); Router.go('settings'); }),
+    ]);
+  }
 
   function taskSection(kind, title, icName, list, key, readonly) {
     const sec = el('.card.pad.tsec');
@@ -8469,11 +8226,63 @@ const AssistantView = (() => {
 })();
 
 /* ---------------------------------------------------------------------------
+   15ah. PlanView / ReportsView — thin tab shells over existing pages
+   ------------------------------------------------------------------------- */
+/* Week+Month and Stats+Reviews+History are the same concern viewed at different
+   grains, so they share one nav slot each. These wrappers own nothing but the
+   tab strip: every sub-view still builds itself, keeps its own cursor state and
+   its own page header, and is reachable directly by URL. Adding a tab here is
+   one line and changes nothing inside the view it points at. */
+function tabShell(state, tabs, onPick, action) {
+  const seg = el('.seg');
+  tabs.forEach(([key, labelKey]) => seg.appendChild(
+    el('button' + (state === key ? '.on' : ''), { text: I18n.t(labelKey), onclick: () => onPick(key) })));
+  return el('.row.between.wrap.gap-2', { style: { marginBottom: 'var(--s-3)' } }, [seg, action || null]);
+}
+
+const PlanView = (() => {
+  const TABS = [['week', 'nav_week'], ['month', 'nav_month']];
+  let tab = 'week';
+  async function render() {
+    const wrap = el('.col');
+    /* This add button is load-bearing, not decoration. Week has per-column
+       quick-add, but Month's per-cell "+" is hover-only AND display:none below
+       the mobile breakpoint — so with the bottom bar's centre "+" gone there
+       would be no way at all to add a task from this page on a phone. */
+    const add = el('button.btn.add.sm', { html: icon('plus') + '<span>' + I18n.t('addTask') + '</span>',
+      onclick: () => TaskUI.openEditor(null, () => Router.render(), { kind: 'daily', date: Jalali.todayKey() }) });
+    wrap.appendChild(tabShell(tab, TABS, (k) => { tab = k; Router.render(); }, add));
+    wrap.appendChild(tab === 'month' ? await Month.render() : await Week.render());
+    return wrap;
+  }
+  return { render, goto: (k) => { tab = k; Router.go('plan'); } };
+})();
+
+const ReportsView = (() => {
+  const TABS = [['stats', 'nav_stats'], ['reviews', 'reviews'], ['history', 'nav_history']];
+  let tab = 'stats';
+  async function render() {
+    const wrap = el('.col');
+    wrap.appendChild(tabShell(tab, TABS, (k) => { tab = k; Router.render(); }));
+    wrap.appendChild(tab === 'reviews' ? await ReviewsView.render()
+      : tab === 'history' ? await HistoryView.render() : await StatsView.render());
+    return wrap;
+  }
+  return { render, goto: (k) => { tab = k; Router.go('reports'); } };
+})();
+
+/* ---------------------------------------------------------------------------
    16. Route registration
    ------------------------------------------------------------------------- */
 function registerRoutes() {
-  Router.register('dashboard', { title: () => I18n.t('nav_dashboard'), render: () => Dashboard.render() });
+  /* The dashboard is gone — Today is home. This stub exists ONLY so the
+     hundreds of installs carrying lastPage:'dashboard' in localStorage, plus
+     any bookmark or old deep link, land on Today instead of an empty view.
+     Remove it a release or two from now, not today. */
+  Router.register('dashboard', { title: () => I18n.t('nav_today'), render: () => { Router.go('today'); return null; } });
   Router.register('today', { title: () => I18n.t('nav_today'), render: () => Today.render() });
+  Router.register('plan', { title: () => I18n.t('nav_plan'), render: () => PlanView.render() });
+  Router.register('reports', { title: () => I18n.t('nav_reports'), render: () => ReportsView.render() });
   Router.register('week', { title: () => I18n.t('nav_week'), render: () => Week.render() });
   Router.register('month', { title: () => I18n.t('nav_month'), render: () => Month.render() });
   Router.register('goals', { title: () => I18n.t('nav_goals'), render: (p) => GoalsView.render(p) });
@@ -8547,8 +8356,8 @@ async function migrateRoutinesToHabits() {
     }
     await DB.softDelete('tasks', r.id);
   }
-  // Written directly, never through Habits.toggle — that awards XP, and these
-  // completions were already credited to xpLog when they happened.
+  // Written directly to the store rather than through Habits.toggle, which
+  // emits habit:complete per record.
   if (records.length) await DB.bulkPut('habitRecords', records);
 
   await DB.kvSet(MIGRATION_KEY, { at: Date.now(), moved: routines.length, records: records.length });
@@ -8559,6 +8368,12 @@ async function migrateRoutinesToHabits() {
    17. Bootstrap
    ------------------------------------------------------------------------- */
 async function boot() {
+  // Every install from before the rework has lastPage:'dashboard' persisted.
+  // The route still resolves (to a redirect stub), but rewriting the pref here
+  // means a returning user takes the direct path to Today on the very first
+  // cold start rather than bouncing through a redirect forever.
+  if (Prefs.get('lastPage') === 'dashboard') Prefs.set('lastPage', 'today');
+
   I18n.apply();
   Theme.apply();
   if (!Prefs.get('animations')) { document.documentElement.style.setProperty('--dur-1', '0ms');
@@ -8587,8 +8402,6 @@ async function boot() {
   window.addEventListener('online', () => { Layout.refreshNet(); UI.toast('success', I18n.t('online')); });
   window.addEventListener('offline', () => Layout.refreshNet());
   Bus.on('lang:change', () => { Layout.build(); Router.render(); });
-  // Dashboard reflects data created elsewhere; Today/Settings self-manage their own refresh.
-  Bus.on('data:change', debounce(() => { if (Router.current() === 'dashboard') Router.render(); }, 600));
 
   // App lock must be armed before anything else becomes reachable.
   await Lock.init();
@@ -8611,11 +8424,11 @@ async function boot() {
 document.addEventListener('DOMContentLoaded', boot);
 
 /* Public surface (dev console / future modules) */
-return { Bus, Prefs, I18n, Jalali, Theme, DB, UI, Router, Layout, Command, Views, Dashboard, Settings, PWA,
-  Tasks, TaskUI, Today, Week, Month, Goals, GoalsView, Roadmap, Habits, HabitsView, Markdown, Notes, NotesView, Charts, Finance, FinanceView,
+return { Bus, Prefs, I18n, Jalali, Theme, DB, UI, Router, Layout, Command, Views, Settings, PWA,
+  Tasks, TaskUI, Today, PlanView, ReportsView, Week, Month, Goals, GoalsView, Roadmap, Habits, HabitsView, Markdown, Notes, NotesView, Charts, Finance, FinanceView,
   Focus, FocusView, Health, HealthView, History, HistoryView, Stats, StatsView, Search,
   Reviews, ReviewsView, Notify, Lock, Recovery, Insights, AI, AssistantView,
-  el, $, $$, icon, uid, debounce, version: '1.1.0-rework-p1' };
+  el, $, $$, icon, uid, debounce, version: '1.2.0-rework-p3' };
 })();
 
 window.App = App;
