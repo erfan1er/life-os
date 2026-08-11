@@ -1792,7 +1792,7 @@ const I18n = (() => {
       dataSectionHint: 'خروجی JSON یک فایل برای نگه‌داری خارج از برنامه می‌سازد. «ساخت پشتیبان» یک نسخه داخل همین برنامه ذخیره می‌کند که با یک کلیک قابل بازگرداندن است (حداکثر ۵ نسخهٔ اخیر نگه داشته می‌شود).',
       exportVsBackupHint: 'برای نگه‌داری در جای امن دیگر، از «خروجی JSON» استفاده کن؛ برای بازگشت سریع به حالت قبل، از پشتیبان‌های زیر.',
       localBackups: 'پشتیبان‌های ذخیره‌شده', restoreConfirmMsg: 'اطلاعات فعلی با این پشتیبان جایگزین می‌شود. ادامه می‌دهی؟',
-      bkManual: 'دستی', bkPreReset: 'پیش از بازنشانی',
+      bkManual: 'دستی', bkPreReset: 'پیش از بازنشانی', bkPreRework: 'پیش از بازطراحی', bkPinned: 'محفوظ', bkAuto: 'خودکار', bkPreMigration: 'پیش از انتقال',
       recoverySectionHint: 'این بخش داده‌های فعلی را از نظر خرابی بررسی می‌کند و فایل پشتیبان بیرونی را پیش از وارد کردن اعتبارسنجی می‌کند. برای ساختن پشتیبان، به بخش «داده‌ها» در بالا برو.',
       reset: 'بازنشانی برنامه', danger: 'منطقه خطر',
       save: 'ذخیره', cancel: 'انصراف', delete: 'حذف', confirm: 'تأیید', close: 'بستن',
@@ -2081,7 +2081,7 @@ const I18n = (() => {
       dataSectionHint: '"Export JSON" makes a file to keep outside the app. "Create backup" saves an in-app snapshot you can restore with one click (last 5 kept).',
       exportVsBackupHint: 'Use "Export JSON" to keep a copy somewhere safe; use the backups below to quickly roll back.',
       localBackups: 'Local backups', restoreConfirmMsg: 'Current data will be replaced by this backup. Continue?',
-      bkManual: 'Manual', bkPreReset: 'Before reset',
+      bkManual: 'Manual', bkPreReset: 'Before reset', bkPreRework: 'Before redesign', bkPinned: 'Kept', bkAuto: 'Automatic', bkPreMigration: 'Before migration',
       recoverySectionHint: 'This section scans your current data for corruption and validates an external backup file before you import it. To create a backup, use the "Data" section above.',
       reset: 'Reset app', danger: 'Danger zone',
       save: 'Save', cancel: 'Cancel', delete: 'Delete', confirm: 'Confirm', close: 'Close',
@@ -2716,13 +2716,13 @@ const DB = (() => {
       meant listing backups had to deserialize every full snapshot, and each new
       backup rewrote all of them. */
   const BK_ROW = (id) => 'backup:' + id;
-  async function backup(reason = 'manual') {
+  async function backup(reason = 'manual', { pinned = false } = {}) {
     const snap = await exportAll();
     // Size is measured per store; one combined stringify can exceed the
     // engine's max string length on large databases.
     let size = 0;
     for (const rows of Object.values(snap.data)) { try { size += JSON.stringify(rows).length; } catch { /* store too large to measure */ } }
-    const meta = { id: uid(), at: Date.now(), reason, size };
+    const meta = { id: uid(), at: Date.now(), reason, size, ...(pinned ? { pinned: true } : {}) };
     await kvSet(BK_ROW(meta.id), snap);
     // Move any snapshots still stored inline by the old format into their own
     // rows first, so they stay restorable after the metadata is slimmed down.
@@ -2730,9 +2730,19 @@ const DB = (() => {
     for (const r of raw) if (r && r.snap) await kvSet(BK_ROW(r.id), r.snap);
     const list = raw.map(({ snap: _s, ...m }) => m);
     list.unshift(meta);
-    const dropped = list.splice(5);
+    /* PINNED snapshots are exempt from the roll and don't consume a slot.
+       A snapshot taken before a one-way change is worthless if the 10-minute
+       auto-backup evicts it 50 minutes later — which is exactly what the plain
+       5-deep splice did. Only guarded one-off migrations pin, so this stays
+       bounded at a handful of rows. */
+    const keep = [], dropped = []; let unpinned = 0;
+    for (const m of list) {
+      if (m.pinned) keep.push(m);
+      else if (unpinned < 5) { keep.push(m); unpinned++; }
+      else dropped.push(m);
+    }
     for (const d of dropped) await hardDelete('kv', BK_ROW(d.id)).catch(() => {});
-    await kvSet('backups', list);
+    await kvSet('backups', keep);
     Bus.emit('backup:done', { reason });
     return meta;
   }
@@ -3690,7 +3700,8 @@ const Settings = (() => {
        split into "Data" + a duplicate "Create restore point" button hidden
        inside the Recovery section that did the exact same DB.backup() call
        under a different label — confusing, removed). */
-    const BK_REASON = { manual: I18n.t('bkManual'), 'restore-point': I18n.t('bkManual'), 'pre-reset': I18n.t('bkPreReset') };
+    const BK_REASON = { manual: I18n.t('bkManual'), 'restore-point': I18n.t('bkManual'), 'pre-reset': I18n.t('bkPreReset'), preRework: I18n.t('bkPreRework'),
+      auto: I18n.t('bkAuto'), preMigration: I18n.t('bkPreMigration') };
     const backupsList = await DB.backups();
     wrap.appendChild(section(I18n.t('data'), [
       el('.hint', { text: I18n.t('dataSectionHint') }),
@@ -3708,7 +3719,7 @@ const Settings = (() => {
         el('.label', { text: I18n.t('localBackups') }),
         ...backupsList.map(b => el('.row.between.gap-4', { style: { padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 'var(--r-md)' } }, [
           el('.col', {}, [ el('.small', { text: new Date(b.at).toLocaleString(I18n.get() === 'fa' ? 'fa-IR' : 'en-US') }),
-            el('.hint', { text: `${BK_REASON[b.reason] || b.reason} · ${(b.size / 1024).toFixed(1)} KB` }) ]),
+            el('.hint', { text: `${BK_REASON[b.reason] || b.reason}${b.pinned ? ' · ' + I18n.t('bkPinned') : ''} · ${(b.size / 1024).toFixed(1)} KB` }) ]),
           el('button.btn.sm', { text: I18n.t('restore'), onclick: async () => {
             if (await UI.confirm({ title: I18n.t('restore'), message: I18n.t('restoreConfirmMsg'), danger: true, confirmLabel: I18n.t('restore') })) { await DB.restore(b.id); UI.toast('success', I18n.t('imported')); Router.render(); } } }),
         ]))]) : null,
@@ -8911,6 +8922,20 @@ function registerRoutes() {
    untouched, and a kv flag so it can never run twice. */
 const MIGRATION_KEY = 'migration.routines2habits';
 
+/* One-off safety net for the rework that follows (gamification, the morning
+   check-in and the evening journal are being removed; navigation is being
+   rebuilt). Same shape as the migration below: a kv flag so it can only ever
+   run once, on the very first launch of the reworked build.
+
+   Pinned, so the periodic auto-backup can't roll it off the end. */
+const PRE_REWORK_KEY = 'migration.preRework';
+
+async function backupBeforeRework() {
+  if (await DB.kvGet(PRE_REWORK_KEY)) return;
+  const meta = await DB.backup('preRework', { pinned: true });
+  await DB.kvSet(PRE_REWORK_KEY, { at: Date.now(), backupId: meta.id });
+}
+
 async function migrateRoutinesToHabits() {
   if (await DB.kvGet(MIGRATION_KEY)) return;
   const routines = (await DB.all('tasks')).filter(t => t.kind === 'routine');
@@ -8961,6 +8986,7 @@ async function boot() {
   try {
     await DB.open();
     await DB.repair();
+    await backupBeforeRework();
     await migrateRoutinesToHabits();
   } catch (e) {
     console.error('DB init failed', e);
