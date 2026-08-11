@@ -791,44 +791,6 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .cl-row.on .cl-text { text-decoration: line-through; color: var(--text-3); }
 .cl-text { flex: 1; font-size: var(--fs-sm); }
 
-/* Check-in — collapses to one line of chips once the day is logged, so it
-   stops owning a third of the day view for the rest of the day. */
-.checkin .ci-head { display: flex; align-items: center; gap: var(--s-2); cursor: pointer; min-height: 32px; }
-.checkin .ci-sun { color: var(--orange); display: grid; place-items: center; flex: none; }
-.checkin .ci-sun svg.ic { width: 18px; height: 18px; }
-.checkin .ci-title { font-size: var(--fs-md); font-weight: 600; flex: none; }
-.checkin .ci-summary { display: flex; align-items: center; gap: 5px; flex: 1; min-width: 0; overflow: hidden; justify-content: flex-end; }
-.checkin.ci-open .ci-summary { display: none; }
-.checkin.ci-open .ci-title { flex: 1; }
-.ci-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
-  background: var(--surface-2); font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); flex: none; white-space: nowrap; }
-.ci-chip svg.ic { width: 12px; height: 12px; color: var(--text-3); }
-.ci-chip.ci-emo { font-size: 15px; padding: 0 4px; background: none; }
-.ci-chip.ci-clip { min-width: 0; max-width: 130px; }
-.ci-chip.ci-clip span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.checkin .ci-chev { color: var(--text-3); display: grid; place-items: center; flex: none;
-  transition: transform var(--dur-2) var(--ease); }
-.checkin .ci-chev svg.ic { width: 16px; height: 16px; }
-.checkin.ci-open .ci-chev { transform: rotate(180deg); }
-.checkin .ci-body { display: none; }
-.checkin.ci-open .ci-body { display: flex; flex-direction: column; gap: var(--s-3);
-  padding-top: var(--s-2); border-top: 1px solid var(--border); }
-/* Caption above control. A label column beside the control is what stranded
-   each control ~700px from its label on a wide card — this can't do that at
-   any width. */
-.checkin .ci-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--s-3); }
-.ci-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.ci-field .ci-cap { font-size: var(--fs-xs); font-weight: 600; color: var(--text-3); }
-.checkin .ci-full { grid-column: 1 / -1; }
-/* Full width on a phone, capped on a monitor — a 972px-wide row of five faces
-   is five 194px buttons, which reads as a toolbar, not a question. */
-.checkin .mood-pick { max-width: 420px; }
-.checkin .energy-pick { max-width: none; }
-.checkin .ci-intent { max-width: 560px; }
-/* Stars get a real hit area rather than just the glyph. */
-.checkin .stars { gap: 2px; }
-.checkin .stars button { font-size: 20px; min-width: 36px; height: 36px; }
-.ci-prev { font-size: var(--fs-xs); color: var(--text-3); }
 .pick { display: flex; gap: 5px; flex-wrap: wrap; }
 .pick button { padding: 5px 11px; border-radius: var(--r-full); background: var(--surface-2); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); border: 1px solid var(--border); transition: all var(--dur-1) var(--ease); }
 .pick button:hover { background: var(--surface-3); border-color: var(--border-strong); transform: translateY(-1px); }
@@ -856,7 +818,9 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .energy-pick button.on { background: linear-gradient(135deg, var(--orange), color-mix(in srgb, var(--orange) 65%, var(--red)));
   color: #fff; border-color: transparent; box-shadow: 0 3px 12px color-mix(in srgb, var(--orange) 35%, transparent); transform: scale(1.04); }
 .stars { display: flex; gap: 3px; }
-.stars button { font-size: 20px; color: var(--border-strong); line-height: 1; transition: color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease), text-shadow var(--dur-1) var(--ease); }
+/* min-width/height came from the check-in's own override; folded in here when
+   the stars moved to Health, or the tap target would drop to the 20px glyph. */
+.stars button { font-size: 20px; min-width: 36px; height: 36px; color: var(--border-strong); line-height: 1; transition: color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease), text-shadow var(--dur-1) var(--ease); }
 .stars button.on { color: var(--orange); text-shadow: 0 0 12px color-mix(in srgb, var(--orange) 55%, transparent); }
 .stars button:hover { transform: scale(1.2) rotate(8deg); color: var(--orange); }
 .counter { display: flex; align-items: center; gap: var(--s-3); }
@@ -1351,9 +1315,6 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
      FAB that needed extra clearance is gone — no magic bottom padding left. */
   .view { padding: var(--s-3) var(--s-3) var(--s-5); }
   .card.pad { padding: var(--s-5); }
-  /* A phone header fits about three chips; more than that clipped mid-chip and
-     looked broken. The intention is the long one — it lives inside. */
-  .checkin .ci-summary .ci-clip { display: none; }
   .topbar { padding-inline: var(--s-3); height: calc(50px + env(safe-area-inset-top, 0px)); }
 
   /* No sidebar on a phone at all — the bottom bar plus the More sheet cover
@@ -1788,11 +1749,9 @@ const I18n = (() => {
       version: 'نسخه', phase: 'فاز', foundation: 'فونداسیون',
       // Phase 1 — Today & Tasks
       prevDay: 'روز قبل', nextDay: 'روز بعد', jumpToday: 'برو به امروز',
-      morningCheckin: 'ثبت صبحگاهی', sleepTime: 'خواب', wakeTime: 'بیداری', sleepQuality: 'کیفیت خواب',
+      sleepTime: 'خواب', wakeTime: 'بیداری', sleepQuality: 'کیفیت خواب',
       mood: 'حال‌وهوا', energy: 'انرژی', weight: 'وزن', waterTarget: 'هدف آب', water: 'آب',
-      intention: 'مهم‌ترین کار امروز', intentionPh: 'اگر امروز فقط یک کار انجام بشه، اون چیه؟',
       weeklyTasks: 'کارهای هفتگی', dailyTasks: 'کارهای روزانه', noHabitsToday: 'عادتی برای امروز تنظیم نشده',
-      dailyJournal: 'دفترچه روزانه', reflection: 'بازتاب روز', gratitude: 'قدردانی', lessons: 'درس‌های امروز', tomorrowPlan: 'برنامه فردا',
       closeDay: 'بستن روز', freeDay: 'روز آزاد', resetDay: 'بازنشانی روز', unlockDay: 'باز کردن روز',
       dayClosed: 'این روز بسته شده', dayClosedSub: 'برای ویرایش، ابتدا روز را باز کنید.',
       title: 'عنوان', titlePh: 'چه کاری باید انجام شود؟', description: 'توضیحات', priority: 'اولویت', category: 'دسته', goal: 'هدف', tags: 'برچسب‌ها', tagsPh: 'با ویرگول جدا کنید',
@@ -1837,8 +1796,7 @@ const I18n = (() => {
       openGoalHint: 'برای جزئیات کلیک کن', roadmapDragHint: 'برای جابه‌جایی نقشه، آن را با موس بگیر و بکش؛ روی هر گره کلیک کن تا هدف باز شود.',
       moreOptions: 'جزئیات بیشتر (اختیاری)', taskDate: 'تاریخ',
       routinesMigrated: '{n} روتین به عادت تبدیل شد (یک نسخهٔ پشتیبان قبل از تغییر ذخیره شد)',
-      noMatchFilter: 'چیزی با این فیلتر پیدا نشد', clearFilter: 'حذف فیلتر', checkinEmpty: 'هنوز ثبت نشده',
-      yesterdayWas: 'دیروز:', checkinAsk: 'امروز چطوری؟',
+      noMatchFilter: 'چیزی با این فیلتر پیدا نشد', clearFilter: 'حذف فیلتر',
       firstRunTitle: 'از کجا شروع کنیم؟', firstRunSub: 'سه کار کوچک تا برنامه برای تو کار کند.',
       firstRunTask: 'اولین کار را بنویس', firstRunHabit: 'یک عادت از الگوها بردار', firstRunSettings: 'اسم و تنظیمات را ببین',
       dismiss: 'باشه، فهمیدم',
@@ -2057,11 +2015,9 @@ const I18n = (() => {
       version: 'Version', phase: 'Phase', foundation: 'Foundation',
       // Phase 1 — Today & Tasks
       prevDay: 'Previous', nextDay: 'Next', jumpToday: 'Jump to today',
-      morningCheckin: 'Morning check-in', sleepTime: 'Sleep', wakeTime: 'Wake', sleepQuality: 'Sleep quality',
+      sleepTime: 'Sleep', wakeTime: 'Wake', sleepQuality: 'Sleep quality',
       mood: 'Mood', energy: 'Energy', weight: 'Weight', waterTarget: 'Water goal', water: 'Water',
-      intention: "Today's #1 task", intentionPh: 'If only one thing gets done today, what is it?',
       weeklyTasks: 'Weekly tasks', dailyTasks: 'Daily tasks', noHabitsToday: 'No habits scheduled for this day',
-      dailyJournal: 'Daily journal', reflection: 'Reflection', gratitude: 'Gratitude', lessons: 'Lessons learned', tomorrowPlan: 'Plan for tomorrow',
       closeDay: 'Close day', freeDay: 'Free day', resetDay: 'Reset day', unlockDay: 'Unlock day',
       dayClosed: 'This day is closed', dayClosedSub: 'Unlock the day to edit it.',
       title: 'Title', titlePh: 'What needs to be done?', description: 'Description', priority: 'Priority', category: 'Category', goal: 'Goal', tags: 'Tags', tagsPh: 'Comma separated',
@@ -2106,8 +2062,7 @@ const I18n = (() => {
       openGoalHint: 'Click for details', roadmapDragHint: 'Drag the map with your mouse to pan; click any node to open the goal.',
       moreOptions: 'More details (optional)', taskDate: 'Date',
       routinesMigrated: '{n} routines became habits (a backup was saved first)',
-      noMatchFilter: 'Nothing matches this filter', clearFilter: 'Clear filter', checkinEmpty: 'Not logged yet',
-      yesterdayWas: 'Yesterday:', checkinAsk: 'How are you today?',
+      noMatchFilter: 'Nothing matches this filter', clearFilter: 'Clear filter',
       firstRunTitle: 'Where to start', firstRunSub: 'Three small things and the app starts working for you.',
       firstRunTask: 'Write your first task', firstRunHabit: 'Pick a habit from the templates', firstRunSettings: 'Check your name and settings',
       dismiss: 'Got it',
@@ -4353,7 +4308,6 @@ const Today = (() => {
 
     const content = el('.col.gap-6');
     if (readonly) content.classList.add('locked');
-    content.appendChild(checkinCard(day, (await getDay(Jalali.addDays(key, -1))).checkin));
 
     const tasks = await Tasks.forDate(key);
     // Weekly tasks are week-scoped: show the whole week's list on every day of that week.
@@ -4363,7 +4317,6 @@ const Today = (() => {
     content.appendChild(taskSection('daily', I18n.t('dailyTasks'), 'today', tasks.filter(t => t.kind === 'daily'), key, readonly));
     content.appendChild(taskSection('weekly', I18n.t('weeklyTasks'), 'week', weekTasks, key, readonly));
     content.appendChild(await habitsSection(key, readonly));
-    content.appendChild(journalCard(day));
     wrap.appendChild(content);
     wrap.appendChild(dayActions(key, day));
     return wrap;
@@ -4397,111 +4350,6 @@ const Today = (() => {
     ]);
   }
 
-  const MOODS = [['awful', '😩'], ['bad', '😕'], ['ok', '😐'], ['good', '🙂'], ['great', '😄']];
-  // Collapsed vs expanded survives a re-render but not a reload: the default is
-  // "open until you've logged something", so the card asks once and then gets
-  // out of the way. null = follow that default.
-  let checkinOpen = null;
-
-  /* Morning check-in, shaped after what the mood-tracking apps people actually
-     stick with do (Daylio et al): the card asks ONE question, you answer it
-     with a tap, and that's a complete entry. Energy and sleep quality are two
-     more optional taps; the intention is one line.
-
-     What is deliberately NOT here: water and sleep/wake times. Water is a
-     through-the-day thing — nobody drinks eight glasses before breakfast — and
-     both, along with weight, are already logged on the Health page into this
-     same day.checkin record, which is where they belong.
-
-     Layout rule learned the hard way: captions sit ABOVE their control, never
-     in a label column beside it. A label column is what stranded every control
-     ~700px away from its label on a wide card. */
-  function checkinCard(day, prevCheckin) {
-    const c = day.checkin || (day.checkin = {});
-    const logged = () => !!(c.mood || c.energy || c.sleepQuality || c.intention);
-    const card = el('.card.pad.col.gap-3.checkin');
-    const save = () => { saveDay(day); paintSummary(); };
-
-    /* Collapsed line: what you logged, at a glance. */
-    const summary = el('.ci-summary');
-    const chip = (ic, txt, cls = '') => el('.ci-chip' + cls, {}, [ic ? el('span', { html: icon(ic) }) : null, el('span', { text: txt })]);
-    function paintSummary() {
-      summary.innerHTML = '';
-      if (c.mood) summary.appendChild(el('.ci-chip.ci-emo', { text: (MOODS.find(m => m[0] === c.mood) || [])[1] || '' }));
-      if (c.energy) summary.appendChild(chip('bolt', `${I18n.num(c.energy)}/${I18n.num(5)}`));
-      if (c.sleepQuality) summary.appendChild(chip('moon', '★'.repeat(c.sleepQuality), '.ci-sleep'));
-      if (c.intention) summary.appendChild(chip('goals', c.intention, '.ci-clip'));
-      if (!summary.children.length) summary.appendChild(el('.ci-chip.dim', { text: I18n.t('checkinEmpty') }));
-    }
-    paintSummary();
-
-    /* Mood — the primary daily interaction, so it stays full width at 44px. */
-    const moodPick = el('.mood-pick');
-    MOODS.forEach(([val, emo]) => moodPick.appendChild(el('button' + (c.mood === val ? '.on' : ''), { type: 'button', text: emo,
-      title: I18n.t('mood_' + val), 'aria-label': I18n.t('mood_' + val), 'aria-pressed': String(c.mood === val),
-      onclick: (e) => {
-        c.mood = val; save();
-        $$('button', moodPick).forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); });
-        e.currentTarget.classList.add('on'); e.currentTarget.setAttribute('aria-pressed', 'true');
-        navigator.vibrate?.(8);   // one light tick on the day's confirmation, nowhere else
-      } })));
-
-    const energyPick = el('.energy-pick');
-    for (let i = 1; i <= 5; i++) energyPick.appendChild(el('button' + (c.energy === i ? '.on' : ''), { type: 'button', text: I18n.num(i),
-      'aria-label': `${I18n.t('energy')} ${i}`, 'aria-pressed': String(c.energy === i),
-      onclick: (e) => { c.energy = i; save();
-        $$('button', energyPick).forEach(b => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); });
-        e.currentTarget.classList.add('on'); e.currentTarget.setAttribute('aria-pressed', 'true'); } }));
-
-    const stars = el('.stars');
-    for (let i = 1; i <= 5; i++) stars.appendChild(el('button' + ((c.sleepQuality || 0) >= i ? '.on' : ''), { type: 'button', text: '★',
-      'aria-label': `${I18n.t('sleepQuality')} ${i}`,
-      onclick: () => { c.sleepQuality = i; save(); $$('button', stars).forEach((b, bi) => b.classList.toggle('on', bi < i)); } }));
-
-    const intent = el('input.input.ci-intent', { value: c.intention || '', placeholder: I18n.t('intentionPh'),
-      'aria-label': I18n.t('intention'), oninput: debounce((e) => { c.intention = e.target.value; save(); }, 400) });
-
-    /* Yesterday, in one dim line — the point of logging a mood is the trend,
-       and until now nothing on this card showed one. */
-    const prev = prevCheckin || {};
-    const prevBits = [];
-    if (prev.mood) prevBits.push((MOODS.find(m => m[0] === prev.mood) || [])[1]);
-    if (prev.energy) prevBits.push(`${I18n.t('energy')} ${I18n.num(prev.energy)}`);
-    if (prev.sleepQuality) prevBits.push('★'.repeat(prev.sleepQuality));
-    const yesterday = prevBits.length
-      ? el('.ci-prev', { text: `${I18n.t('yesterdayWas')} ${prevBits.join(' · ')}` }) : null;
-
-    /* Caption above the control, never a label column beside it: a label column
-       is what stranded every control ~700px from its label on a wide card. */
-    const fieldOf = (cap, control, full) => el('.ci-field' + (full ? '.ci-full' : ''), {}, [
-      el('.ci-cap', { text: cap }), control,
-    ]);
-
-    const body = el('.ci-body', {}, [
-      moodPick,
-      el('.ci-grid', {}, [
-        fieldOf(I18n.t('energy'), energyPick),
-        fieldOf(I18n.t('sleepQuality'), stars),
-        fieldOf(I18n.t('intention'), intent, true),
-      ]),
-      yesterday,
-    ]);
-
-    const chev = el('span.ci-chev', { html: icon('chevD') });
-    const toggle = () => { checkinOpen = !card.classList.contains('ci-open'); card.classList.toggle('ci-open', checkinOpen); };
-    const head = el('.ci-head', { role: 'button', tabindex: 0, 'aria-label': I18n.t('morningCheckin'),
-      onclick: toggle, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } } }, [
-      el('span.ci-sun', { html: icon('sun') }),
-      // Empty card asks a question; once answered it's just a label again.
-      el('.ci-title', { text: logged() ? I18n.t('morningCheckin') : I18n.t('checkinAsk') }),
-      summary,
-      chev,
-    ]);
-
-    card.append(head, body);
-    if (checkinOpen === null ? !logged() : checkinOpen) card.classList.add('ci-open');
-    return card;
-  }
   const field = Views.field;
 
   function taskSection(kind, title, icName, list, key, readonly) {
@@ -4555,18 +4403,6 @@ const Today = (() => {
       el('button.btn.sm.ghost', { html: icon('chevR') + '<span>' + I18n.t('nav_habits') + '</span>', onclick: () => Router.go('habits') }),
     ]));
     return sec;
-  }
-
-  function journalCard(day) {
-    const jr = day.journal || (day.journal = {});
-    const ta = (k, label, ic) => el('.field', {}, [el('.label', {}, [label]),
-      el('textarea.textarea', { placeholder: label, style: { minHeight: '84px' }, oninput: debounce((e) => { jr[k] = e.target.value; saveDay(day); }, 400) }, jr[k] || '')]);
-    return el('.card.pad.col.gap-4', {}, [
-      el('.row.gap-3', {}, [el('span.stat-ic', { style: { background: 'color-mix(in srgb,var(--brand) 15%,transparent)', color: 'var(--brand)' }, html: icon('book') }),
-        el('.h4', { text: I18n.t('dailyJournal') })]),
-      el('.grid.g-2', {}, [ta('reflection', I18n.t('reflection')), ta('gratitude', I18n.t('gratitude'))]),
-      el('.grid.g-2', {}, [ta('lessons', I18n.t('lessons')), ta('tomorrow', I18n.t('tomorrowPlan'))]),
-    ]);
   }
 
   function dayActions(key, day) {
@@ -6992,6 +6828,14 @@ const HealthView = (() => {
     const energyPick = el('.energy-pick');
     for (let i = 1; i <= 5; i++) energyPick.appendChild(el('button' + (c.energy === i ? '.on' : ''), { type: 'button', text: I18n.num(i),
       onclick: (e) => { c.energy = i; saveDay(); $$('button', energyPick).forEach(b => b.classList.remove('on')); e.currentTarget.classList.add('on'); } }));
+    /* Sleep quality moved here when the morning check-in was removed. It is a
+       health metric, Health.series already collects it, and Month's "average
+       sleep quality" tile reads it — leave it without a writer and that tile
+       silently reads "—" forever with nothing to explain why. */
+    const stars = el('.stars');
+    for (let i = 1; i <= 5; i++) stars.appendChild(el('button' + ((c.sleepQuality || 0) >= i ? '.on' : ''), { type: 'button', text: '★',
+      'aria-label': `${I18n.t('sleepQuality')} ${I18n.num(i)}`,
+      onclick: () => { c.sleepQuality = i; saveDay(); $$('button', stars).forEach((b, bi) => b.classList.toggle('on', bi < i)); } }));
     const weightIn = numIn({ value: c.weight || '', placeholder: '70.5', onChange: (n) => { c.weight = n; saveDay(); } });
     const target = c.waterTarget || 8;
     const waterVal = el('.val', { text: `${I18n.num(c.water || 0)}/${I18n.num(target)}` });
@@ -7015,6 +6859,7 @@ const HealthView = (() => {
       ]),
       el('.health-grid', {}, [
         field(I18n.t('sleepTime'), sleepIn), field(I18n.t('wakeTime'), wakeIn),
+        field(I18n.t('sleepQuality'), stars),
         field(I18n.t('mood'), moodPick), field(I18n.t('energy'), energyPick),
         field(I18n.t('weight'), weightIn), field(I18n.t('water'), water),
         field(I18n.t('workoutMin'), workoutMin, I18n.t('workoutHint')),
