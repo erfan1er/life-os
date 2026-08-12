@@ -59,28 +59,32 @@
 }
 
 /* ---- Design Tokens ------------------------------------------------------- */
+/* See MASTER.md at the project root. Nothing here is a free choice: the palette
+   was measured for contrast against the surfaces it actually sits on, and the
+   three text tokens that failed AA are noted there so they don't get "cleaned
+   up" back to the values that failed. */
 :root {
-  /* Brand */
-  --brand: #7C5CFC;
-  --brand-600: #6D4EF0;
-  --brand-700: #5B3FD6;
-  --brand-soft: #EEE9FF;
+  /* Accent — ink blue. One accent, used only where it does work. */
+  --brand: #33538A;
+  --brand-600: #2C4877;
+  --brand-700: #243B62;
+  --brand-soft: #E7EDF6;
   --brand-contrast: #FFFFFF;
 
-  /* Semantic accents */
-  --green: #22C55E;
-  --red: #EF4444;
-  --orange: #F59E0B;
-  --blue: #3B82F6;
-  --pink: #EC4899;
-  --teal: #14B8A6;
+  /* Semantic — deliberately muted. A calm app has no neon. */
+  --green: #4C7A4E;
+  --red: #A8443A;
+  --orange: #8A6519;
+  --blue: #4A6FA5;
+  --pink: #9C5A72;
+  --teal: #3F7A75;
 
-  /* Radii — tight, web-app scale (the old 22/28px read as a consumer mobile app) */
-  --r-sm: 8px;
-  --r-md: 10px;
+  /* Radii — soft, notebook scale */
+  --r-sm: 6px;
+  --r-md: 8px;
   --r-lg: 12px;
-  --r-xl: 14px;
-  --r-2xl: 18px;
+  --r-xl: 16px;
+  --r-2xl: 20px;
   --r-full: 999px;
 
   /* Spacing scale.
@@ -90,8 +94,8 @@
      below are the ONLY place these numbers are written. --s-1/--s-2 are icon
      gaps and stay fixed; scaling them just blurs the small stuff. */
   --sp-scale: 1;
-  --s-3-base: 10px; --s-4-base: 12px; --s-5-base: 14px; --s-6-base: 16px;
-  --s-7-base: 22px; --s-8-base: 28px; --s-9-base: 36px;
+  --s-3-base: 12px; --s-4-base: 16px; --s-5-base: 20px; --s-6-base: 24px;
+  --s-7-base: 32px; --s-8-base: 40px; --s-9-base: 48px;
   --s-1: 4px;  --s-2: 8px;
   --s-3: calc(var(--s-3-base) * var(--sp-scale));
   --s-4: calc(var(--s-4-base) * var(--sp-scale));
@@ -111,10 +115,16 @@
      the multiplier Theme.apply() writes from Prefs.fontSize (85–130%).
      Theme.apply() used to overwrite each --fs-* directly with an inline style,
      which silently beat the responsive overrides in the @media block — that is
-     why phone font sizes never actually changed. One multiplier fixes it. */
+     why phone font sizes never actually changed. One multiplier fixes it.
+
      These are the DESKTOP sizes; the ≤720px block shrinks the bases one step
      for the phone, where a 14px body reads fine at arm's length but 15px on a
-     monitor does not. Density (spacing/radii) stays compact on both. */
+     monitor does not. Density (spacing/radii) stays compact on both.
+
+     NOTE: this comment used to be closed one line early, so everything from
+     "These are..." through the --fs-scale declaration below was parsed as a
+     bogus declaration and DROPPED. It only worked because Theme.apply() writes
+     --fs-scale inline at boot; the :root fallback was dead. */
   --fs-scale: 1;
   --fs-xs-base: 12px; --fs-sm-base: 13px; --fs-md-base: 15px; --fs-lg-base: 17px;
   --fs-xl-base: 20px; --fs-2xl-base: 24px; --fs-3xl-base: 30px;
@@ -126,52 +136,69 @@
   --fs-2xl: calc(var(--fs-2xl-base) * var(--fs-scale));
   --fs-3xl: calc(var(--fs-3xl-base) * var(--fs-scale));
 
-  /* Motion */
-  --ease: cubic-bezier(.22,.61,.36,1);
-  --ease-in-out: cubic-bezier(.65,.05,.36,1);
-  --dur-1: 120ms; --dur-2: 200ms; --dur-3: 300ms;
+  /* Motion — sharp ease-out, no overshoot. Nothing here may be used to move an
+     element into position: this engine parks left/right/opacity transitions on
+     their first frame (see MASTER.md). */
+  --ease: cubic-bezier(.2,0,0,1);
+  --ease-in-out: cubic-bezier(.4,0,.2,1);
+  --dur-1: 120ms; --dur-2: 180ms; --dur-3: 240ms;
 
   /* Z */
   --z-nav: 40; --z-sheet: 60; --z-modal: 80; --z-toast: 100; --z-cmd: 120;
 }
 
-/* Light theme */
+/* Light theme — warm paper. This is the primary design.
+   Shadows are nearly absent on purpose: a card is separated by its border, not
+   by elevation. --shadow-md/lg exist for things that genuinely float (modal,
+   popover, command palette). */
 :root, [data-theme="light"] {
-  --bg: #F6F7FB;
+  --bg: #F7F4EF;
   --bg-elev: #FFFFFF;
   --surface: #FFFFFF;
-  --surface-2: #F1F2F8;
-  --surface-3: #E9EAF2;
-  --text: #14151A;
-  --text-2: #4A4D5A;
-  --text-3: #83879A;
-  --border: #E6E8F0;
-  --border-strong: #D3D6E4;
-  --shadow-sm: 0 1px 2px rgba(20,21,26,.06), 0 1px 3px rgba(20,21,26,.04);
-  --shadow-md: 0 4px 12px rgba(20,21,26,.08), 0 2px 4px rgba(20,21,26,.04);
-  --shadow-lg: 0 12px 32px rgba(20,21,26,.12), 0 4px 8px rgba(20,21,26,.06);
-  --overlay: rgba(20,21,26,.42);
-  --brand-soft: #EEE9FF;
+  --surface-2: #F2EEE7;
+  --surface-3: #EAE5DB;
+  --text: #2B2724;
+  --text-2: #6B635A;
+  --text-3: #756C63;          /* 4.7:1 on paper — do NOT lighten; #9A9088 failed at 2.85 */
+  --border: #E4DED3;
+  --border-strong: #D5CCBD;
+  --shadow-sm: 0 1px 2px rgba(43,39,36,.05);
+  --shadow-md: 0 4px 14px rgba(43,39,36,.07);
+  --shadow-lg: 0 8px 24px rgba(43,39,36,.10);
+  --overlay: rgba(43,39,36,.34);
+  --brand-soft: #E7EDF6;
   color-scheme: light;
 }
 
-/* Dark theme */
+/* Dark theme — a SEPARATE deliberate design, not an inversion of the paper.
+   Inverting warm cream gives muddy brown, so this is its own warm-neutral
+   ground with its own accent lift. */
 [data-theme="dark"] {
-  --bg: #0E0F14;
-  --bg-elev: #16181F;
-  --surface: #181A22;
-  --surface-2: #1F2230;
-  --surface-3: #262A3A;
-  --text: #ECEDF2;
-  --text-2: #AEB2C2;
-  --text-3: #767B8E;
-  --border: #262A38;
-  --border-strong: #333849;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
-  --shadow-md: 0 6px 18px rgba(0,0,0,.45);
-  --shadow-lg: 0 18px 44px rgba(0,0,0,.55);
-  --overlay: rgba(0,0,0,.6);
-  --brand-soft: #241E45;
+  --bg: #191714;
+  --bg-elev: #211F1B;
+  --surface: #211F1B;
+  --surface-2: #2A2722;
+  --surface-3: #343029;
+  --text: #ECE7DF;
+  --text-2: #A69F94;
+  --text-3: #968D82;          /* 5.0:1 on surface — #756E64 failed at 3.27 */
+  --border: #35312B;
+  --border-strong: #453F37;
+  --brand: #7FA3DC;
+  --brand-600: #93B2E3;
+  --brand-700: #A7C1E9;
+  --brand-contrast: #141311;
+  --green: #7FA97F;
+  --red: #D2786D;
+  --orange: #C9A54E;
+  --blue: #7FA3DC;
+  --pink: #C58FA1;
+  --teal: #6FA9A3;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.35);
+  --shadow-md: 0 4px 14px rgba(0,0,0,.45);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,.55);
+  --overlay: rgba(0,0,0,.58);
+  --brand-soft: #20293A;
   color-scheme: dark;
 }
 
@@ -192,12 +219,11 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adj
 body {
   font-family: var(--font);
   font-size: var(--fs-md);
-  line-height: 1.5;
+  line-height: 1.6;          /* paper wants air */
   color: var(--text);
-  background:
-    radial-gradient(1100px 560px at 88% -12%, color-mix(in srgb, var(--brand) 7%, transparent), transparent 62%),
-    radial-gradient(900px 520px at -8% 112%, color-mix(in srgb, var(--teal) 5%, transparent), transparent 60%),
-    var(--bg);
+  /* Flat ground. The two radial brand/teal washes that used to sit here were
+     the last decorative gradient in the app. */
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow: hidden;
@@ -234,7 +260,7 @@ ul, ol { list-style: none; }
 #splash.hide { opacity: 0; pointer-events: none; }
 .splash-mark {
   width: 76px; height: 76px; border-radius: 22px;
-  background: linear-gradient(135deg, var(--brand), var(--pink));
+  background: var(--brand);
   display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 34px;
   box-shadow: var(--shadow-lg);
   animation: pop .6s var(--ease) both;
@@ -273,11 +299,11 @@ ul, ol { list-style: none; }
 }
 .sb-head { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-4) var(--s-4) var(--s-3); }
 .sb-logo { width: 32px; height: 32px; border-radius: 9px; flex: none;
-  background: linear-gradient(135deg, var(--brand), var(--pink));
+  background: var(--brand);
   display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 15px;
   box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 4px 12px color-mix(in srgb, var(--brand) 35%, transparent);
   transition: transform var(--dur-2) var(--ease); }
-.sb-head:hover .sb-logo { transform: scale(1.06) rotate(-4deg); }
+
 .sb-title { font-weight: 700; font-size: var(--fs-lg); white-space: nowrap; }
 .sb-sub { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; }
 .shell.collapsed .sb-title, .shell.collapsed .sb-sub, .shell.collapsed .nav-label,
@@ -309,14 +335,14 @@ ul, ol { list-style: none; }
   margin-bottom: 2px; white-space: nowrap;
 }
 .nav-item:hover { background: var(--surface-2); color: var(--text); }
-.nav-item.active { background: linear-gradient(90deg, var(--brand-soft), color-mix(in srgb, var(--brand-soft) 45%, transparent));
+.nav-item.active { background: var(--brand-soft);
   color: var(--brand); font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 14%, transparent); }
 [data-theme="dark"] .nav-item.active { color: #C9BCFF; }
 .nav-item.active .nav-ic { color: var(--brand); }
 [data-theme="dark"] .nav-item.active .nav-ic { color: #C9BCFF; }
 .nav-ic { width: 22px; height: 22px; flex: none; display: grid; place-items: center; color: var(--text-3);
   transition: transform var(--dur-2) var(--ease), color var(--dur-1) var(--ease); }
-.nav-item:hover .nav-ic { transform: scale(1.12); color: var(--text-2); }
+.nav-item:hover .nav-ic { color: var(--text-2); }
 .nav-item.active::before { content:''; position: absolute; inset-inline-start: -12px; top: 50%; transform: translateY(-50%);
   width: 4px; height: 20px; border-radius: 999px; background: var(--brand); }
 .nav-badge { margin-inline-start: auto; font-size: 11px; background: var(--surface-3); color: var(--text-2);
@@ -379,7 +405,7 @@ ul, ol { list-style: none; }
   transition: box-shadow var(--dur-2) var(--ease), transform var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
 }
 .card.pad { padding: var(--s-6); }
-.card.hover:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); transform: translateY(-2px); }
+.card.hover:hover { border-color: var(--border-strong); }
 
 .grid { display: grid; gap: var(--s-5); }
 .g-2 { grid-template-columns: repeat(2, 1fr); }
@@ -417,25 +443,25 @@ ul, ol { list-style: none; }
     color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease), transform var(--dur-1) var(--ease);
   user-select: none; white-space: nowrap; position: relative;
 }
-.btn:hover { background: var(--surface-3); border-color: var(--border-strong); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn:hover { background: var(--surface-3); border-color: var(--border-strong); }
 .btn:active { transform: translateY(0) scale(.97); box-shadow: none; transition-duration: 60ms; }
 .btn:disabled { opacity: .5; pointer-events: none; }
 .btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .btn.primary {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 88%, #fff), var(--brand) 45%, var(--brand-600));
+  background: var(--brand);
   color: var(--brand-contrast); border-color: var(--brand-700);
   box-shadow: 0 1px 0 rgba(255,255,255,.22) inset, 0 3px 10px color-mix(in srgb, var(--brand) 38%, transparent);
   text-shadow: 0 1px 1px rgba(0,0,0,.12);
 }
 .btn.primary:hover {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--brand-600) 86%, #fff), var(--brand-600) 45%, var(--brand-700));
+  background: var(--brand-600);
   box-shadow: 0 1px 0 rgba(255,255,255,.22) inset, 0 6px 18px color-mix(in srgb, var(--brand) 48%, transparent);
 }
 .btn.primary:active { box-shadow: 0 1px 0 rgba(255,255,255,.14) inset, 0 2px 6px color-mix(in srgb, var(--brand) 34%, transparent); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
-.btn.ghost:hover { background: var(--surface-2); border-color: transparent; color: var(--text); box-shadow: none; }
+.btn.ghost:hover { background: var(--surface-2); border-color: transparent; color: var(--text); }
 .btn.danger { background: transparent; color: var(--red); border-color: color-mix(in srgb, var(--red) 32%, transparent); }
-.btn.danger:hover { background: color-mix(in srgb, var(--red) 12%, transparent); border-color: color-mix(in srgb, var(--red) 45%, transparent); box-shadow: 0 4px 12px color-mix(in srgb, var(--red) 18%, transparent); }
+.btn.danger:hover { background: color-mix(in srgb, var(--red) 12%, transparent); border-color: color-mix(in srgb, var(--red) 45%, transparent); }
 .btn.outline { background: transparent; border-color: var(--border-strong); }
 .btn.outline:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--brand) 45%, var(--border-strong)); color: var(--brand); }
 .btn.icon { padding: 7px; width: 34px; height: 34px; }
@@ -450,13 +476,13 @@ ul, ol { list-style: none; }
 .btn.add {
   border-radius: var(--r-full); font-weight: 700; color: #fff; gap: 6px;
   padding-inline: 14px 10px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 72%, #fff) -30%, var(--brand) 40%, var(--brand-700) 115%);
+  background: var(--brand);
   box-shadow: 0 1px 0 rgba(255,255,255,.28) inset, 0 4px 14px color-mix(in srgb, var(--brand) 36%, transparent);
   text-shadow: 0 1px 1px rgba(0,0,0,.12);
 }
 [dir="ltr"] .btn.add { padding-inline: 10px 14px; flex-direction: row; }
 .btn.add:hover {
-  background: linear-gradient(135deg, var(--brand) -10%, var(--brand-600) 45%, var(--brand-700) 115%);
+  background: var(--brand-600);
   box-shadow: 0 1px 0 rgba(255,255,255,.28) inset, 0 7px 20px color-mix(in srgb, var(--brand) 50%, transparent);
 }
 .btn.add:active { box-shadow: 0 1px 0 rgba(255,255,255,.16) inset, 0 2px 8px color-mix(in srgb, var(--brand) 32%, transparent); }
@@ -512,7 +538,7 @@ ul, ol { list-style: none; }
 .jdp-day:active { transform: scale(.9); }
 .jdp-day.fri { color: var(--red); }
 .jdp-day.today { color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
-.jdp-day.on { background: linear-gradient(135deg, var(--brand), var(--brand-600)); color: #fff; box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 35%, transparent); }
+.jdp-day.on { background: var(--brand); color: var(--brand-contrast); }
 .jdp-foot { display: flex; justify-content: space-between; margin-top: var(--s-3); padding-top: var(--s-3); border-top: 1px solid var(--border); }
 
 /* Time picker (same family as the Jalali date picker) */
@@ -525,7 +551,7 @@ ul, ol { list-style: none; }
   color: var(--text); transition: background var(--dur-1) var(--ease); }
 .tp-col button:hover { background: var(--brand-soft); color: var(--brand); }
 .tp-col button:active { transform: scale(.94); }
-.tp-col button.on { background: linear-gradient(135deg, var(--brand), var(--brand-600)); color: #fff;
+.tp-col button.on { background: var(--brand); color: var(--brand-contrast);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 35%, transparent); }
 
 /* Toggle */
@@ -550,7 +576,7 @@ ul, ol { list-style: none; }
 .swatches { display: flex; gap: var(--s-2); flex-wrap: wrap; }
 .swatch { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; position: relative;
   transition: transform var(--dur-1) var(--ease); border: 2px solid transparent; }
-.swatch:hover { transform: scale(1.12); }
+
 .swatch.on { border-color: var(--text); }
 .swatch.on::after { content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 12px; font-weight: 800; }
 
@@ -559,7 +585,7 @@ ul, ol { list-style: none; }
    badge. It appears on a dozen pages, so it must never dominate one. */
 .state { text-align: center; padding: var(--s-7) var(--s-5); display: flex; flex-direction: column; align-items: center; gap: var(--s-3); }
 .state .ic { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; color: var(--brand);
-  background: linear-gradient(135deg, var(--brand-soft), color-mix(in srgb, var(--brand-soft) 40%, transparent));
+  background: var(--brand-soft);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 12%, transparent); }
 .state h3 { font-size: var(--fs-md); font-weight: 600; }
 .state p { color: var(--text-3); max-width: 300px; font-size: var(--fs-sm); }
@@ -577,10 +603,9 @@ ul, ol { list-style: none; }
 .stat-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none;
   transition: transform var(--dur-2) var(--ease); }
 .stat::after { content: ''; position: absolute; inset-inline: 0; bottom: 0; height: 3px;
-  background: linear-gradient(90deg, var(--tile-c, var(--brand)), transparent 80%); opacity: .45;
+  background: var(--tile-c, var(--brand)); opacity: .3;
   transition: opacity var(--dur-2) var(--ease); }
 .stat:hover::after { opacity: .9; }
-.stat:hover .stat-ic { transform: scale(1.1) rotate(-4deg); }
 
 /* Dashboard */
 .dash > * { animation: dashIn var(--dur-3) var(--ease) both; }
@@ -592,8 +617,7 @@ ul, ol { list-style: none; }
 @keyframes dashIn { from { opacity: 0; transform: translateY(14px) scale(.995); } to { opacity: 1; transform: none; } }
 
 .hero { position: relative; overflow: hidden;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 15%, var(--surface)), var(--surface) 55%,
-    color-mix(in srgb, var(--teal) 7%, var(--surface))); }
+  background: var(--surface); }
 .hero > .row { position: relative; z-index: 1; }
 .hero-orb { position: absolute; border-radius: 50%; filter: blur(48px); opacity: .5; pointer-events: none; }
 .hero-orb.o1 { width: 230px; height: 230px; background: color-mix(in srgb, var(--brand) 50%, transparent); top: -120px; inset-inline-end: -50px; }
@@ -601,14 +625,14 @@ ul, ol { list-style: none; }
 .hero-chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .dash-clock { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 34px; font-weight: 800;
   line-height: 1.15; letter-spacing: .01em; direction: ltr;
-  background: linear-gradient(120deg, var(--brand), var(--pink)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  color: var(--text); }
 
 .w-ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; flex: none;
   background: color-mix(in srgb, var(--w-c, var(--brand)) 14%, transparent); color: var(--w-c, var(--brand)); }
 
 .bar > span { position: relative; overflow: hidden; }
 .bar > span.shine::after { content: ''; position: absolute; inset: 0;
-  background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,.4) 50%, transparent 62%);
+  background: none;
   animation: shine 2.8s var(--ease-in-out) infinite; }
 @keyframes shine { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 
@@ -616,14 +640,13 @@ ul, ol { list-style: none; }
 .qa-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px;
   border-radius: var(--r-lg); background: var(--surface-2); border: 1px solid var(--border);
   font-weight: 600; font-size: var(--fs-sm); color: var(--text-2); transition: all var(--dur-2) var(--ease); }
-.qa-tile:hover { transform: translateY(-2px); color: var(--text); box-shadow: var(--shadow-md);
+.qa-tile:hover { color: var(--text);
   border-color: color-mix(in srgb, var(--qa-c, var(--brand)) 38%, var(--border));
   background: color-mix(in srgb, var(--qa-c, var(--brand)) 6%, var(--surface)); }
 .qa-tile:active { transform: translateY(0) scale(.97); }
 .qa-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
   background: color-mix(in srgb, var(--qa-c, var(--brand)) 14%, transparent); color: var(--qa-c, var(--brand));
   transition: transform var(--dur-2) var(--ease); }
-.qa-tile:hover .qa-ic { transform: scale(1.12) rotate(-5deg); }
 
 /* Progress */
 .bar { height: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
@@ -662,7 +685,7 @@ ul, ol { list-style: none; }
   border-radius: var(--r-2xl); box-shadow: var(--shadow-lg); overflow: hidden; animation: modalIn var(--dur-3) var(--ease) both; }
 @keyframes modalIn { from { opacity: 0; transform: translateY(20px) scale(.97); } to { opacity: 1; transform: none; } }
 .modal-head { padding: var(--s-3) var(--s-5); display: flex; align-items: center; gap: var(--s-3); border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 5%, transparent), transparent); }
+  background: transparent; }
 .modal-body { padding: var(--s-5); max-height: 70vh; overflow-y: auto; }
 .modal-foot { padding: var(--s-3) var(--s-5); display: flex; gap: var(--s-3); justify-content: flex-end; border-top: 1px solid var(--border); background: var(--surface); }
 /* Bottom-sheet variant of .modal (UI.modal({sheet:true})) — thumb-reachable.
@@ -714,7 +737,7 @@ ul, ol { list-style: none; }
 /* ---- Icons --------------------------------------------------------------- */
 .ic { width: 1em; height: 1em; display: inline-block; vertical-align: -.125em; }
 svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; fill: none; transition: transform var(--dur-2) var(--ease); }
-.btn:not(.add):hover > svg.ic, .btn:not(.add):hover > span > svg.ic { transform: scale(1.08); }
+
 /* Standalone icon containers must NOT inherit their icon size from font-size
    (that made bottom-nav icons render at 10px). Fixed pixel sizes instead. */
 .nav-ic svg.ic { width: 19px; height: 19px; }
@@ -774,7 +797,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
   background: var(--surface); border: 1px solid var(--border); position: relative;
   transition: border-color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease),
     opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease); }
-.task:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+.task:hover { border-color: var(--border-strong); }
 .task.done .task-check { animation: checkPop var(--dur-3) var(--ease); }
 @keyframes checkPop { 0% { transform: scale(.6); } 55% { transform: scale(1.25); } 100% { transform: scale(1); } }
 .task .pstripe { position: absolute; inset-inline-start: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 999px; background: var(--border-strong); }
@@ -785,7 +808,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .task.done .task-title { text-decoration: line-through; color: var(--text-3); }
 .task-check { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border-strong); flex: none; margin-top: 1px;
   display: grid; place-items: center; cursor: pointer; transition: all var(--dur-1) var(--ease); color: transparent; }
-.task-check:hover { border-color: var(--brand); transform: scale(1.1);
+.task-check:hover { border-color: var(--brand);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 12%, transparent); }
 .task-check:active { transform: scale(.9); }
 .task-check svg { width: 12px; height: 12px; }
@@ -807,7 +830,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .cl-wrap { margin-top: var(--s-3); padding-top: var(--s-3); border-top: 1px dashed var(--border); }
 .cl-row { display: flex; align-items: center; gap: var(--s-3); padding: 5px 0; }
 .cl-box { width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--border-strong); flex: none; display: grid; place-items: center; cursor: pointer; color: transparent; transition: all var(--dur-1) var(--ease); }
-.cl-box:hover { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent); }
+.cl-box:hover { border-color: var(--brand); }
 .cl-box svg { width: 11px; height: 11px; }
 .cl-row.on .cl-box { background: var(--brand); border-color: var(--brand); color: #fff; }
 .cl-row.on .cl-text { text-decoration: line-through; color: var(--text-3); }
@@ -815,9 +838,9 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 
 .pick { display: flex; gap: 5px; flex-wrap: wrap; }
 .pick button { padding: 5px 11px; border-radius: var(--r-full); background: var(--surface-2); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); border: 1px solid var(--border); transition: all var(--dur-1) var(--ease); }
-.pick button:hover { background: var(--surface-3); border-color: var(--border-strong); transform: translateY(-1px); }
+.pick button:hover { background: var(--surface-3); border-color: var(--border-strong); }
 .pick button:active { transform: scale(.95); }
-.pick button.on { background: linear-gradient(135deg, var(--brand), var(--brand-600)); color: #fff; border-color: transparent;
+.pick button.on { background: var(--brand); color: var(--brand-contrast); border-color: transparent;
   box-shadow: 0 3px 10px color-mix(in srgb, var(--brand) 32%, transparent); }
 /* Mood + energy pickers — equal-width tidy rows (used in check-in + Health) */
 .mood-pick, .energy-pick { display: flex; gap: 5px; width: 100%; max-width: 300px; }
@@ -829,22 +852,22 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
   transition: all var(--dur-1) var(--ease);
 }
 .mood-pick button { font-size: 21px; filter: grayscale(.55); opacity: .75; }
-.mood-pick button:hover { filter: none; opacity: 1; transform: translateY(-2px); border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.mood-pick button:hover { filter: none; opacity: 1; border-color: var(--border-strong); }
 .mood-pick button:active { transform: scale(.94); }
 .mood-pick button.on { filter: none; opacity: 1; background: var(--brand-soft);
   border-color: color-mix(in srgb, var(--brand) 45%, transparent);
   box-shadow: 0 3px 12px color-mix(in srgb, var(--brand) 22%, transparent); transform: scale(1.04); }
 .energy-pick button { font-weight: 700; font-size: var(--fs-sm); color: var(--text-2); font-family: var(--font-mono); }
-.energy-pick button:hover { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 40%, var(--border)); transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+.energy-pick button:hover { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 40%, var(--border)); }
 .energy-pick button:active { transform: scale(.94); }
-.energy-pick button.on { background: linear-gradient(135deg, var(--orange), color-mix(in srgb, var(--orange) 65%, var(--red)));
+.energy-pick button.on { background: var(--orange);
   color: #fff; border-color: transparent; box-shadow: 0 3px 12px color-mix(in srgb, var(--orange) 35%, transparent); transform: scale(1.04); }
 .stars { display: flex; gap: 3px; }
 /* min-width/height came from the check-in's own override; folded in here when
    the stars moved to Health, or the tap target would drop to the 20px glyph. */
 .stars button { font-size: 20px; min-width: 36px; height: 36px; color: var(--border-strong); line-height: 1; transition: color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease), text-shadow var(--dur-1) var(--ease); }
 .stars button.on { color: var(--orange); text-shadow: 0 0 12px color-mix(in srgb, var(--orange) 55%, transparent); }
-.stars button:hover { transform: scale(1.2) rotate(8deg); color: var(--orange); }
+.stars button:hover { color: var(--orange); }
 .counter { display: flex; align-items: center; gap: var(--s-3); }
 .counter-btn { width: 30px; height: 30px; border-radius: var(--r-full); background: var(--surface-2); border: 1px solid var(--border);
   display: grid; place-items: center; color: var(--text-2); font-weight: 800; font-size: 16px; transition: all var(--dur-1) var(--ease); }
@@ -860,7 +883,6 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .closed-banner .cb-ic { color: var(--orange); }
 .locked { pointer-events: none; opacity: .55; filter: saturate(.55); user-select: none; }
 
-
 /* ---- Week & Month (Phase 2) ---------------------------------------------- */
 .week-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--s-3); align-items: start; }
 .week-col { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; display: flex; flex-direction: column; min-height: 112px; transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease); }
@@ -874,7 +896,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .wk-head .wk-cnt { font-size: 10px; font-weight: 700; color: var(--text-3); background: var(--surface-2); border-radius: 999px; padding: 0 6px; }
 .wk-body { padding: 6px; display: flex; flex-direction: column; gap: 4px; flex: 1; min-height: 40px; }
 .wk-chip { display: flex; align-items: center; gap: 6px; padding: 5px 7px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid transparent; cursor: grab; font-size: var(--fs-sm); transition: border-color var(--dur-1) var(--ease), opacity var(--dur-1) var(--ease), transform var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease); }
-.wk-chip:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.wk-chip:hover { border-color: var(--border-strong); }
 .wk-chip:active { cursor: grabbing; }
 .wk-chip.dragging { opacity: .35; }
 .wk-chip.done { opacity: .55; }
@@ -898,7 +920,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .month-wd { text-align: center; font-size: var(--fs-xs); font-weight: 700; color: var(--text-3); padding: 4px 0; }
 .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--s-2); }
 .mday { min-height: 76px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 5px 6px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); position: relative; overflow: hidden; }
-.mday:hover { border-color: var(--brand); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.mday:hover { border-color: var(--brand); }
 .mday.blank { background: transparent; border: none; cursor: default; }
 .mday.is-today { border-color: var(--brand); background: var(--brand-soft);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent), 0 4px 14px color-mix(in srgb, var(--brand) 16%, transparent); }
@@ -924,7 +946,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .mday .madd { position: absolute; bottom: 6px; inset-inline-end: 6px; width: 20px; height: 20px; border-radius: 7px; display: grid; place-items: center; background: var(--brand); color: #fff; border: none; cursor: pointer; opacity: 0; transition: opacity var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); }
 .mday .madd svg { width: 12px; height: 12px; }
 .mday:hover .madd, .mday:focus-visible .madd { opacity: 1; }
-.mday .madd:hover { transform: scale(1.1); }
+
 /* Task card extras: inline note + auto-XP chip + kind badges */
 .task-note { display: flex; align-items: flex-start; gap: 6px; font-size: var(--fs-xs); color: var(--text-3); background: var(--surface-2); border-radius: 8px; padding: 5px 8px; margin-top: 4px; white-space: pre-wrap; word-break: break-word; }
 .task-note svg { width: 12px; height: 12px; flex: none; margin-top: 2px; }
@@ -942,7 +964,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .goal-tree { display: flex; flex-direction: column; gap: 5px; }
 .goal-row { display: flex; align-items: center; gap: var(--s-2); padding: 8px 10px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border);
   transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); }
-.goal-row:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+.goal-row:hover { border-color: var(--border-strong); }
 .goal-toggle { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 6px; color: var(--text-3); flex: none; cursor: pointer; transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease); }
 .goal-toggle:hover { background: var(--brand-soft); color: var(--brand); }
 .goal-toggle.leaf { visibility: hidden; }
@@ -960,7 +982,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .gb-title { font-weight: 700; font-size: var(--fs-md); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color var(--dur-1) var(--ease); }
 .gb-kids { display: flex; flex-direction: column; gap: 4px; }
 .gb-kid { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: var(--r-md); background: var(--surface-2); cursor: pointer; transition: background var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); }
-.gb-kid:hover { background: var(--surface-3); transform: translateY(-1px); }
+.gb-kid:hover { background: var(--surface-3); }
 .gb-kic { flex: none; font-size: 15px; }
 .gb-kt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); font-weight: 600; }
 .gb-kbar { width: 64px; flex: none; }
@@ -978,7 +1000,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .mchip.goalc .gname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mchip.goalc:hover { background: color-mix(in srgb, var(--brand) 22%, transparent); }
 .dash-goal { display: flex; align-items: center; gap: var(--s-2); padding: 7px 9px; border-radius: var(--r-md); background: var(--surface-2); transition: background var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); }
-.dash-goal:hover { background: var(--surface-3); transform: translateY(-1px); }
+.dash-goal:hover { background: var(--surface-3); }
 .dash-goal .dg-ic { font-size: 19px; flex: none; }
 .dash-goal .dg-t { font-weight: 600; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .goal-ring-sm { width: 34px; height: 34px; flex: none; }
@@ -1008,7 +1030,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 /* width is mirrored by NODE_W in the Roadmap module — change both together or
    the SVG connectors stop meeting the nodes. */
 .rm-node { position: absolute; width: 168px; box-sizing: border-box; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-lg); padding: 7px 9px; box-shadow: var(--shadow-sm); cursor: pointer; transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); }
-.rm-node:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); }
+.rm-node:hover { border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); }
 .rm-node .rm-title { font-weight: 600; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rm-node .rm-meta { display: flex; align-items: center; gap: 7px; margin-top: 7px; }
 .rm-node .rm-bar { flex: 1; }
@@ -1019,7 +1041,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 /* ---- Habits & Heatmap (Phase 4) ------------------------------------------ */
 .habit-row { display: flex; align-items: center; gap: var(--s-2); padding: 8px 10px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border);
   transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); }
-.habit-row:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+.habit-row:hover { border-color: var(--border-strong); }
 .habit-ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none; font-size: 17px; }
 .habit-name { flex: 1; min-width: 0; cursor: pointer; }
 .habit-name .hn { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1028,7 +1050,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .streak-flame svg { width: 13px; height: 13px; }
 .streak-flame.cold { color: var(--text-3); }
 .habit-check { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--border-strong); flex: none; display: grid; place-items: center; cursor: pointer; color: transparent; transition: all var(--dur-1) var(--ease); }
-.habit-check:hover { border-color: var(--brand); transform: scale(1.08);
+.habit-check:hover { border-color: var(--brand);
   box-shadow: 0 0 0 5px color-mix(in srgb, var(--brand) 10%, transparent); }
 .habit-check:active { transform: scale(.92); }
 .habit-check.on { color: #fff; }
@@ -1038,7 +1060,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .hsub .hchip svg { width: 11px; height: 11px; }
 .hweek { display: flex; gap: 4px; flex: none; margin-inline-end: 4px; }
 .hweek .hday { width: 13px; height: 13px; border-radius: 4px; background: var(--surface-3); border: 1px solid var(--border); cursor: pointer; transition: transform var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease); }
-.hweek .hday:hover { transform: scale(1.25); border-color: var(--brand); }
+.hweek .hday:hover { border-color: var(--brand); }
 .hweek .hday.is-today { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
 .hweek .hday.skip { background: repeating-linear-gradient(45deg, var(--surface-3), var(--surface-3) 2px, var(--border) 2px, var(--border) 4px); }
 .hweek .hday.off { opacity: .25; cursor: default; pointer-events: none; }
@@ -1049,7 +1071,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .hm-col { display: flex; flex-direction: column; gap: 3px; }
 .hm-cell { width: 11px; height: 11px; border-radius: 3px; background: var(--surface-2); transition: transform var(--dur-1) var(--ease); }
 .hm-cell.clickable { cursor: pointer; }
-.hm-cell.clickable:hover { transform: scale(1.25); outline: 1px solid var(--brand); }
+.hm-cell.clickable:hover { outline: 1px solid var(--brand); }
 .hm-cell.future { opacity: 0; pointer-events: none; }
 .hm-cell.skip { background: transparent; border: 1.5px dashed var(--border-strong); }
 .hm-legend { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--text-3); }
@@ -1061,7 +1083,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .notes-pane { display: flex; flex-direction: column; gap: var(--s-3); }
 .notes-list { display: flex; flex-direction: column; gap: var(--s-2); max-height: calc(100vh - 240px); overflow-y: auto; padding-inline-end: 2px; }
 .note-card { padding: 8px 10px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); cursor: pointer; transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); }
-.note-card:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.note-card:hover { border-color: var(--border-strong); }
 .note-card.sel { border-color: var(--brand); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent), 0 4px 12px color-mix(in srgb, var(--brand) 12%, transparent); }
 .note-card .nt { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
 .note-card .nt svg { width: 13px; height: 13px; flex: none; }
@@ -1070,9 +1092,9 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .note-pin { color: var(--orange); } .note-fav { color: var(--red); }
 .folder-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .folder-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; background: var(--surface-2); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); cursor: pointer; border: 1px solid transparent; transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease); }
-.folder-chip:hover { background: var(--surface-3); transform: translateY(-1px); }
+.folder-chip:hover { background: var(--surface-3); }
 .folder-chip:active { transform: scale(.95); }
-.folder-chip.on { background: linear-gradient(135deg, var(--brand), var(--brand-600)); color: #fff; border-color: transparent;
+.folder-chip.on { background: var(--brand); color: var(--brand-contrast); border-color: transparent;
   box-shadow: 0 3px 10px color-mix(in srgb, var(--brand) 30%, transparent); }
 .folder-chip svg { width: 14px; height: 14px; }
 .note-editor { display: flex; flex-direction: column; gap: var(--s-3); min-height: calc(100vh - 210px); }
@@ -1114,14 +1136,14 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .rich-editor [style*="background-color"], .md-preview [style*="background-color"] { color: #1F2937; }
 .swatch-pop { position: fixed; z-index: var(--z-modal); display: grid; grid-template-columns: repeat(5, 24px); gap: 6px; padding: 9px; box-shadow: var(--shadow-lg); }
 .swatch-pop .swatch { width: 24px; height: 24px; border-radius: 7px; cursor: pointer; border: 1px solid var(--border); transition: transform var(--dur-1) var(--ease); }
-.swatch-pop .swatch:hover { transform: scale(1.15); }
+
 .swatch-pop .sw-clear { display: grid; place-items: center; background: var(--surface-2); color: var(--text-3); }
 .swatch-pop .sw-clear svg { width: 13px; height: 13px; }
 .note-tags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 
 /* ---- Finance & Charts (Phase 6) ------------------------------------------ */
 .tx-row { display: flex; align-items: center; gap: var(--s-2); padding: 8px 10px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); cursor: pointer; transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); }
-.tx-row:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.tx-row:hover { border-color: var(--border-strong); }
 .tx-ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none; font-size: 16px; }
 .tx-main { flex: 1; min-width: 0; }
 .tx-main .tt { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1144,7 +1166,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 
 .acct-card { padding: var(--s-4); border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 8px; cursor: pointer;
   transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); }
-.acct-card:hover { border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.acct-card:hover { border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); }
 .acct-bal { font-family: var(--font-mono); font-weight: 800; font-size: var(--fs-xl); letter-spacing: -.02em; }
 .acct-bal.neg { color: var(--red); }
 
@@ -1202,7 +1224,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .tl-date .tl-rule { flex: 1; height: 1px; background: var(--border); }
 .tl-date .tl-cnt { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); }
 .tl-item { display: flex; align-items: flex-start; gap: var(--s-2); padding: 7px 9px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); }
-.tl-item.clickable:hover { border-color: color-mix(in srgb, var(--brand) 50%, var(--border)); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.tl-item.clickable:hover { border-color: color-mix(in srgb, var(--brand) 50%, var(--border)); }
 .tl-ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; flex: none; }
 .tl-ic svg { width: 15px; height: 15px; }
 .tl-body { flex: 1; min-width: 0; }
@@ -1256,7 +1278,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 #lockScreen.on { display: grid; animation: fade var(--dur-3) var(--ease) both; }
 .lock-box { width: 100%; max-width: 330px; display: flex; flex-direction: column; align-items: center; gap: var(--s-5); }
 .lock-mark { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; color: #fff;
-  background: linear-gradient(135deg, var(--brand), var(--pink)); box-shadow: var(--shadow-lg); }
+  background: var(--brand); box-shadow: var(--shadow-lg); }
 .lock-mark svg { width: 30px; height: 30px; }
 .lock-dots { display: flex; gap: 12px; }
 .lock-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--surface-3);
@@ -1292,7 +1314,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 
 /* ---- Assistant / Insights (Phase 12) ------------------------------------- */
 .next-card { display: flex; align-items: flex-start; gap: var(--s-3); padding: var(--s-4);
-  border-radius: var(--r-lg); background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 12%, var(--surface)), var(--surface));
+  border-radius: var(--r-lg); background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent); }
 .next-rank { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; flex: none;
   background: var(--brand); color: #fff; font-weight: 800; font-family: var(--font-mono); }
@@ -1383,7 +1405,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
      magic offset (bottom: 82px vs the bar's 66px vs .view's 80px padding) —
      three numbers that had to move together. This is just a bar item. */
   .bn-add .bn-plus { width: 38px; height: 38px; border-radius: var(--r-lg); display: grid; place-items: center; color: #fff;
-    background: linear-gradient(135deg, var(--brand), var(--brand-700));
+    background: var(--brand);
     box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 4px 12px color-mix(in srgb, var(--brand) 40%, transparent); }
   .bn-add .bn-plus svg.ic { width: 21px; height: 21px; }
   .bn-add:active .bn-plus { transform: scale(.9); }
@@ -1609,7 +1631,7 @@ const Bus = (() => {
 const Prefs = (() => {
   const KEY = 'lifeos.prefs';
   const defaults = {
-    theme: 'system', lang: 'fa', accent: '#7C5CFC', density: 'compact',
+    theme: 'system', lang: 'fa', accent: '#33538A', density: 'compact',
     lastPage: 'today', sidebarCollapsed: false, weekStart: 0, timeFormat: '24',
     dateSystem: 'jalali', currency: 'IRT', fontSize: 100, animations: true,
     plannerName: 'Life OS', onboarded: false, browserNotif: false,
@@ -2799,21 +2821,38 @@ const TimePicker = (() => {
 /* ---------------------------------------------------------------------------
    5. Theme manager
    ------------------------------------------------------------------------- */
+/* Ink blue. Kept next to Theme because Prefs.defaults, the boot migration and
+   the swatch list all have to agree with it. */
+const DEFAULT_ACCENT = '#33538A';
+const LEGACY_ACCENT = '#7C5CFC';
+
 const Theme = (() => {
   const mq = window.matchMedia('(prefers-color-scheme: dark)');
   function resolved() { const th = Prefs.get('theme'); return th === 'system' ? (mq.matches ? 'dark' : 'light') : th; }
   function apply() {
     const r = resolved();
     document.documentElement.setAttribute('data-theme', r);
-    const accent = Prefs.get('accent') || '#7C5CFC';
-    document.documentElement.style.setProperty('--brand', accent);
-    document.documentElement.style.setProperty('--brand-600', shade(accent, -8));
-    document.documentElement.style.setProperty('--brand-700', shade(accent, -18));
+    /* One stored accent, LIFTED on the dark ground. The accent is a user
+       preference written as an inline style, so it beats whatever [data-theme]
+       says — which meant a colour chosen to read on warm paper was reused
+       unchanged on a near-black surface, where it loses most of its contrast.
+       Lightening it here keeps the pref a single value and still works for any
+       colour the user picks, not just the shipped ones. */
+    /* 44%: swept across all eight shipped accents against the dark surface.
+       At 30 the darkest of them (ink) landed on 4.51 — passing AA by a rounding
+       error. At 44 the worst case is 6.13 and the lightest is still only 7.44,
+       so nothing washes out. */
+    const accent = Prefs.get('accent') || DEFAULT_ACCENT;
+    const eff = r === 'dark' ? shade(accent, 44) : accent;
+    document.documentElement.style.setProperty('--brand', eff);
+    document.documentElement.style.setProperty('--brand-600', shade(eff, r === 'dark' ? 12 : -8));
+    document.documentElement.style.setProperty('--brand-700', shade(eff, r === 'dark' ? 24 : -18));
+    document.documentElement.style.setProperty('--brand-contrast', r === 'dark' ? '#141311' : '#FFFFFF');
     const meta = document.querySelector('meta[name="theme-color"]');
     // Matches --bg-elev (the topbar), not the accent: without viewport-fit=cover
     // the OS status bar is painted with this colour, so it has to blend into the
-    // topbar instead of showing a purple stripe above it.
-    if (meta) meta.setAttribute('content', r === 'dark' ? '#16181F' : '#FFFFFF');
+    // topbar instead of showing a coloured stripe above it.
+    if (meta) meta.setAttribute('content', r === 'dark' ? '#211F1B' : '#FFFFFF');
     // Two multipliers, no px values: the bases live in :root so the responsive
     // @media overrides still win. (Writing --fs-* directly here used to make
     // every media-query font override dead code — inline style always wins.)
@@ -3600,7 +3639,11 @@ const Views = (() => {
    13. Settings page (fully functional)
    ------------------------------------------------------------------------- */
 const Settings = (() => {
-  const ACCENTS = ['#7C5CFC', '#5B8DEF', '#22C55E', '#F59E0B', '#EF4444', '#EC4899', '#14B8A6', '#8B5CF6'];
+  /* Calm, low-saturation set. The old palette was neon (#22C55E, #F59E0B,
+     #EF4444, #EC4899) — every one of those fights a warm paper ground. Each of
+     these clears 4.5:1 on white and, after Theme.apply's dark lift, on the dark
+     surface too. */
+  const ACCENTS = ['#33538A', '#4F6B3E', '#A8552F', '#6B4E7D', '#3F7A75', '#4A5A6B', '#9C5A72', '#8A6519'];
 
   const section = Views.section, rowItem = Views.rowItem;
   function toggle(checked, onChange) {
@@ -7715,7 +7758,6 @@ const Search = (() => {
   return { query, recent, addRecent, clearRecent, hl, snippet, score, fuzzy };
 })();
 
-
 /* ---------------------------------------------------------------------------
    15z. Reviews — auto-generated daily / weekly / monthly retrospectives
    ------------------------------------------------------------------------- */
@@ -8962,6 +9004,12 @@ async function boot() {
   // cold start rather than bouncing through a redirect forever.
   if (Prefs.get('lastPage') === 'dashboard') Prefs.set('lastPage', 'today');
 
+  /* Same shape of problem: the accent is persisted, so an existing install
+     would keep the old purple and never see the new identity. Only the OLD
+     DEFAULT is rewritten — if the user had deliberately picked a different
+     colour, that is their choice and it stays. */
+  if (Prefs.get('accent') === LEGACY_ACCENT) Prefs.set('accent', DEFAULT_ACCENT);
+
   I18n.apply();
   Theme.apply();
   if (!Prefs.get('animations')) { document.documentElement.style.setProperty('--dur-1', '0ms');
@@ -9016,7 +9064,7 @@ return { Bus, Prefs, I18n, Jalali, Theme, DB, UI, Router, Layout, Command, Views
   Capture, Tasks, TaskUI, Today, PlanView, ReportsView, Week, Month, Goals, GoalsView, Roadmap, Habits, HabitsView, Markdown, Notes, NotesView, Charts, Finance, FinanceView,
   Focus, FocusView, Health, HealthView, History, HistoryView, Stats, StatsView, Search,
   Reviews, ReviewsView, Notify, Lock, Recovery, Insights, AI, AssistantView,
-  el, $, $$, icon, uid, debounce, version: '1.3.1-rework-p5b' };
+  el, $, $$, icon, uid, debounce, version: '1.4.0-rework-p6a' };
 })();
 
 window.App = App;
