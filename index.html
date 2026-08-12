@@ -27,6 +27,11 @@
 <link rel="icon" type="image/png" sizes="192x192" href="app-icon-192.png" />
 <link rel="icon" type="image/svg+xml" href="app-icon.svg" />
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+<!-- Optional public runtime configuration. Copy supabase-config.example.js to
+     supabase-config.js and set only the project URL + anon key. The app stays
+     fully local when this file is absent, which keeps file:// development and
+     existing offline installs working. -->
+<script src="./supabase-config.js"></script>
 <style>
 /* ============================================================================
    PLANER — Phase 0 Foundation
@@ -515,6 +520,15 @@ ul, ol { list-style: none; }
 [dir="ltr"] .select { background-position: right var(--s-3) center; }
 .hint { font-size: var(--fs-xs); color: var(--text-3); }
 .err { font-size: var(--fs-xs); color: var(--red); }
+.sync-state { display: inline-flex; align-items: center; gap: 6px; }
+.sync-state .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.sync-state.online .dot, .sync-state.synced .dot { background: var(--green); }
+.sync-state.syncing .dot { background: var(--brand); }
+.sync-state.error .dot { background: var(--red); }
+.account-email { direction: ltr; text-align: start; unicode-bidi: plaintext; }
+.auth-form { max-width: 420px; margin-inline: auto; }
+.auth-form .btn { min-height: 44px; }
+.invite-code { direction: ltr; text-align: start; font-family: var(--font-mono); letter-spacing: .03em; }
 
 /* Jalali date picker */
 .jdp-input { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); cursor: pointer; text-align: start; }
@@ -2872,7 +2886,7 @@ const Theme = (() => {
    6. Database — IndexedDB layer (versioning, migration, repair, backup, I/O)
    ------------------------------------------------------------------------- */
 const DB = (() => {
-  const NAME = 'lifeos', VERSION = 2;
+  const NAME = 'lifeos', VERSION = 3;
   /** Store schema: forward-compatible with all planned modules. */
   const STORES = {
     tasks:        { key: 'id', indexes: [['date','date'],['goalId','goalId'],['status','status'],['updatedAt','updatedAt']] },
@@ -2901,6 +2915,9 @@ const DB = (() => {
     achievements: { key: 'id', indexes: [['unlockedAt','unlockedAt']] },
     events:       { key: 'id', indexes: [['date','date']] },
     weeks:        { key: 'id', indexes: [['archived','archived']] },
+    /* A compact outbox. It is intentionally local-only: cloud rows are in
+       app_records, while this store lets edits survive an offline restart. */
+    syncQueue:    { key: 'id', indexes: [['queuedAt','queuedAt']] },
     kv:           { key: 'k', indexes: [] },
   };
   let db = null;
@@ -2979,6 +2996,12 @@ const DB = (() => {
     Bus.emit('data:change', { store, id, op: 'destroy' }); }
   async function count(store) { return reqP(tx([store]).objectStore(store).count()); }
   async function clearStore(store) { await reqP(tx([store], 'readwrite').objectStore(store).clear()); }
+  /** Write an incoming cloud row without changing its timestamp/version or
+      putting it back onto the sync queue. */
+  async function putRemote(store, obj) {
+    if (!STORES[store]) return;
+    await reqP(tx([store], 'readwrite').objectStore(store).put(obj));
+  }
 
   /** KV helpers (for module state that isn't a full collection). */
   const kvGet = async (k) => (await get('kv', k))?.v;
@@ -3004,7 +3027,10 @@ const DB = (() => {
   const isBackupRow = (r) => r && typeof r.k === 'string' && (r.k === 'backups' || r.k.startsWith('backup:'));
   async function exportAll() {
     const data = {};
-    for (const s of Object.keys(STORES)) data[s] = await all(s, { includeDeleted: true });
+    // syncQueue is an account-scoped transport outbox, not user backup data.
+    // Exporting it could make a pending write follow a JSON backup to another
+    // account, so it is deliberately excluded.
+    for (const s of Object.keys(STORES)) if (s !== 'syncQueue') data[s] = await all(s, { includeDeleted: true });
     data.kv = redactKv(data.kv.filter(r => !isBackupRow(r)));
     return { app: 'lifeos', schema: VERSION, exportedAt: Date.now(), prefs: Prefs.get(), data };
   }
@@ -3017,7 +3043,7 @@ const DB = (() => {
     for (const k of Object.keys(SECRET_KV)) { const row = await get('kv', k); if (row) localSecrets[k] = row.v; }
 
     for (const s of Object.keys(STORES)) {
-      if (!payload.data[s]) continue;
+      if (s === 'syncQueue' || !payload.data[s]) continue;
       if (!merge) await clearStore(s);
       let rows = payload.data[s].map(o => ({ ...o }));
       if (s === 'kv') rows = rows.map(r => {
@@ -3094,7 +3120,444 @@ const DB = (() => {
   }
 
   return { open, put, bulkPut, get, all, byIndex, softDelete, hardDelete, count, counts,
-    clearStore, kvGet, kvSet, exportAll, importAll, backup, backups, restore, repair, range, STORES, VERSION };
+    clearStore, putRemote, kvGet, kvSet, exportAll, importAll, backup, backups, restore, repair, range, STORES, VERSION };
+})();
+
+/* ---------------------------------------------------------------------------
+   6b. Cloud account + offline-first Supabase synchronisation
+
+   The application deliberately talks to Supabase with fetch instead of a
+   framework SDK: Planer remains a single static PWA for GitHub Pages. Only
+   the public anon key lives in `supabase-config.js`; invite registration is
+   delegated to an Edge Function which alone has the service-role credential.
+   ------------------------------------------------------------------------- */
+const Cloud = (() => {
+  const SESSION_KEY = 'planer.supabase.session.v1';
+  const MIGRATION_PREFIX = 'cloud.migration.';
+  const QUEUE_STORE = 'syncQueue';
+  const LOCAL_COLLECTIONS = Object.keys(DB.STORES).filter(s =>
+    !['kv', QUEUE_STORE].includes(s));
+  const DEVICE_PREFS = new Set(['lastPage', 'sidebarCollapsed', 'onboarded', 'browserNotif']);
+  let session = null, profile = null, state = { phase: 'local', lastSync: null, error: null };
+  let initialized = false, syncing = false, pullTimer = null, applyingRemotePrefs = false;
+
+  const text = (fa, en) => I18n.get() === 'fa' ? fa : en;
+  const config = () => window.PLANER_SUPABASE || {};
+  const configured = () => {
+    const c = config();
+    return /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(c.url || '') && typeof c.anonKey === 'string' && c.anonKey.length > 20;
+  };
+  const apiBase = () => (config().url || '').replace(/\/$/, '');
+  const emit = () => { Bus.emit('cloud:status', status()); };
+  const setState = (patch) => { state = { ...state, ...patch }; emit(); };
+  const safeError = (kind) => {
+    const map = {
+      config: text('پیکربندی Supabase کامل نیست.', 'Supabase is not configured.'),
+      offline: text('اتصال اینترنت در دسترس نیست.', 'You are offline.'),
+      auth: text('ایمیل یا رمز عبور صحیح نیست.', 'Email or password is incorrect.'),
+      invite: text('کد دعوت معتبر نیست یا دیگر قابل استفاده نیست.', 'The invite code is invalid or unavailable.'),
+      reset: text('امکان ارسال ایمیل بازیابی فراهم نشد.', 'Could not send the recovery email.'),
+      sync: text('همگام‌سازی انجام نشد؛ تغییرات محلی محفوظ هستند.', 'Sync failed; local changes are safe.'),
+      generic: text('عملیات انجام نشد. لطفاً دوباره تلاش کنید.', 'The operation could not be completed.'),
+    };
+    return map[kind] || map.generic;
+  };
+  function detailError(e) {
+    const m = String(e?.message || '').toLowerCase();
+    if (m.includes('invite') || m.includes('code')) return safeError('invite');
+    if (m.includes('invalid login') || m.includes('credentials')) return safeError('auth');
+    return safeError('generic');
+  }
+  function saveSession(next) {
+    session = next || null;
+    try {
+      if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      else localStorage.removeItem(SESSION_KEY);
+    } catch {}
+  }
+  function loadSession() {
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
+  }
+  async function request(path, { method = 'GET', body, token = session?.access_token } = {}) {
+    if (!configured()) throw new Error('config');
+    const headers = { apikey: config().anonKey };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const res = await fetch(apiBase() + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    let data = null; try { data = await res.json(); } catch {}
+    if (!res.ok) {
+      const err = new Error(data?.message || data?.error_description || data?.msg || 'request failed');
+      err.status = res.status; throw err;
+    }
+    return data;
+  }
+  async function refreshSession() {
+    if (!session?.refresh_token) return null;
+    if (session.expires_at && Number(session.expires_at) * 1000 > Date.now() + 60_000) return session;
+    const data = await request('/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST', body: { refresh_token: session.refresh_token }, token: config().anonKey,
+    });
+    saveSession(data); return data;
+  }
+  async function fetchProfile() {
+    if (!session?.user?.id) { profile = null; return null; }
+    const rows = await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(session.user.id)}&select=id,display_name,role,created_at`);
+    profile = rows?.[0] || { id: session.user.id, display_name: '', role: 'user' };
+    return profile;
+  }
+  function publicPrefs() {
+    const p = Prefs.get(), out = {};
+    for (const [key, value] of Object.entries(p)) if (!DEVICE_PREFS.has(key)) out[key] = value;
+    return out;
+  }
+  function queueId(collection, id) { return `${collection}:${id}`; }
+  async function queue(collection, payload, id, { quiet = false } = {}) {
+    if (!session?.user || !(await isMigrated())) return;
+    const recordId = queueId(collection, id);
+    const row = {
+      id: recordId, userId: session.user.id, collection, payload: structuredClone(payload), recordId,
+      clientUpdatedAt: Number(payload.updatedAt) || Date.now(),
+      version: Number(payload.version) || 1,
+      deletedAt: payload.deletedAt || null, queuedAt: Date.now(),
+    };
+    await DB.putRemote(QUEUE_STORE, row);
+    if (!quiet) { setState({ phase: navigator.onLine ? 'pending' : 'offline', error: null }); schedule(); }
+  }
+  async function queueLocalChange(evt) {
+    if (!LOCAL_COLLECTIONS.includes(evt.store) || !session?.user || !(await isMigrated())) return;
+    if (evt.op === 'bulk') {
+      for (const row of await DB.all(evt.store, { includeDeleted: true })) await queue(evt.store, row, row.id, { quiet: true });
+      setState({ phase: navigator.onLine ? 'pending' : 'offline', error: null }); schedule();
+      return;
+    }
+    const row = evt.id ? await DB.get(evt.store, evt.id) : null;
+    if (row) await queue(evt.store, row, row.id);
+  }
+  async function migrationState() {
+    if (!session?.user?.id) return null;
+    return DB.kvGet(MIGRATION_PREFIX + session.user.id);
+  }
+  async function isMigrated() { return !!(await migrationState())?.done; }
+  async function localCounts() {
+    const counts = {};
+    let total = 0;
+    for (const collection of LOCAL_COLLECTIONS) {
+      const n = await DB.count(collection); counts[collection] = n; total += n;
+    }
+    return { total, counts };
+  }
+  function schedule() {
+    if (!navigator.onLine || pullTimer) return;
+    pullTimer = setTimeout(() => { pullTimer = null; syncNow().catch(() => {}); }, 450);
+  }
+  function serverRecord(queueRow) {
+    return {
+      id: queueRow.recordId, collection: queueRow.collection, payload: queueRow.payload,
+      client_updated_at: queueRow.clientUpdatedAt, version: queueRow.version,
+      deleted_at: queueRow.deletedAt || null,
+    };
+  }
+  async function pushQueue() {
+    const rows = (await DB.all(QUEUE_STORE, { includeDeleted: true })).filter(row => row.userId === session?.user?.id);
+    if (!rows.length) return [];
+    const accepted = [];
+    for (let i = 0; i < rows.length; i += 100) {
+      const chunk = rows.slice(i, i + 100);
+      const returned = await request('/rest/v1/rpc/sync_app_records', { method: 'POST', body: { p_records: chunk.map(serverRecord) } });
+      accepted.push(...(returned || []));
+      for (const row of chunk) await DB.hardDelete(QUEUE_STORE, row.id);
+    }
+    return accepted;
+  }
+  function shouldApplyRemote(local, remote) {
+    if (!local) return true;
+    const remoteAt = Number(remote.client_updated_at || 0), localAt = Number(local.updatedAt || 0);
+    if (remoteAt !== localAt) return remoteAt > localAt;
+    return Number(remote.version || 1) >= Number(local.version || 1);
+  }
+  async function applyRemote(remote) {
+    const collection = remote.collection;
+    if (collection === 'preferences') {
+      const incoming = remote.payload?.values || {};
+      const updated = {};
+      for (const [key, value] of Object.entries(incoming)) if (!DEVICE_PREFS.has(key)) updated[key] = value;
+      applyingRemotePrefs = true;
+      try { Prefs.patch(updated); } finally { applyingRemotePrefs = false; }
+      return;
+    }
+    if (!LOCAL_COLLECTIONS.includes(collection) || !remote.payload?.id) return;
+    const local = await DB.get(collection, remote.payload.id);
+    if (!shouldApplyRemote(local, remote)) return;
+    const row = { ...remote.payload, updatedAt: Number(remote.client_updated_at || remote.payload.updatedAt || Date.now()),
+      version: Number(remote.version || remote.payload.version || 1), deletedAt: remote.deleted_at || remote.payload.deletedAt || null,
+      syncStatus: 'synced' };
+    await DB.putRemote(collection, row);
+  }
+  async function pullAll() {
+    const rows = await request('/rest/v1/rpc/get_app_records', { method: 'POST', body: {} });
+    for (const remote of rows || []) await applyRemote(remote);
+    if ((rows || []).length) Bus.emit('data:change', { store: '*', op: 'cloud-pull' });
+    return rows || [];
+  }
+  async function syncNow({ force = false } = {}) {
+    if (!configured()) { setState({ phase: 'unconfigured' }); return false; }
+    if (!session?.user) { setState({ phase: 'local' }); return false; }
+    if (!navigator.onLine) { setState({ phase: 'offline' }); return false; }
+    if (syncing) return false;
+    if (!(await isMigrated()) && !force) { setState({ phase: 'needsMigration' }); return false; }
+    syncing = true; setState({ phase: 'syncing', error: null });
+    try {
+      await refreshSession();
+      await pushQueue();
+      await pullAll();
+      const at = Date.now();
+      setState({ phase: 'synced', lastSync: at, error: null });
+      await DB.kvSet('cloud.lastSync.' + session.user.id, at);
+      return true;
+    } catch (e) {
+      console.warn('Cloud sync failed', e);
+      setState({ phase: 'error', error: safeError('sync') });
+      return false;
+    } finally { syncing = false; }
+  }
+  async function migrateDeviceData() {
+    if (!session?.user) throw new Error('auth');
+    if (await isMigrated()) return { already: true, ...(await localCounts()) };
+    const summary = await localCounts();
+    await DB.backup('before-cloud-migration', { pinned: true });
+    for (const collection of LOCAL_COLLECTIONS) {
+      for (const row of await DB.all(collection, { includeDeleted: true })) await queue(collection, row, row.id, { quiet: true });
+    }
+    await queue('preferences', { values: publicPrefs(), updatedAt: Date.now(), version: 1 }, 'main', { quiet: true });
+    await DB.kvSet(MIGRATION_PREFIX + session.user.id, { done: true, at: Date.now(), recordCount: summary.total });
+    setState({ phase: 'pending', error: null });
+    await syncNow({ force: true });
+    return summary;
+  }
+  async function beginForSession() {
+    await refreshSession();
+    await fetchProfile();
+    const saved = await migrationState();
+    const summary = await localCounts();
+    if (saved?.done) {
+      const last = await DB.kvGet('cloud.lastSync.' + session.user.id);
+      setState({ phase: navigator.onLine ? 'pending' : 'offline', lastSync: last || null, error: null });
+      schedule();
+    } else if (summary.total === 0) {
+      /* New device: safe to hydrate immediately, then future edits are synced. */
+      await DB.kvSet(MIGRATION_PREFIX + session.user.id, { done: true, at: Date.now(), emptyDevice: true });
+      setState({ phase: navigator.onLine ? 'pending' : 'offline', error: null });
+      schedule();
+    } else setState({ phase: 'needsMigration', error: null });
+    emit();
+  }
+  async function signIn(email, password) {
+    if (!configured()) throw new Error('config');
+    const data = await request('/auth/v1/token?grant_type=password', { method: 'POST', body: { email, password }, token: config().anonKey });
+    saveSession(data); await beginForSession(); return data;
+  }
+  async function signUp({ displayName, email, password, inviteCode }) {
+    if (!configured()) throw new Error('config');
+    const data = await request('/functions/v1/register-with-invite', {
+      method: 'POST', token: config().anonKey,
+      body: { display_name: displayName, email, password, invite_code: inviteCode },
+    });
+    await signIn(email, password);
+    return data;
+  }
+  async function signOut() {
+    try { if (session?.access_token) await request('/auth/v1/logout', { method: 'POST' }); } catch {}
+    saveSession(null); profile = null; setState({ phase: 'local', lastSync: null, error: null });
+  }
+  async function recoverPassword(email) {
+    await request('/auth/v1/recover', { method: 'POST', token: config().anonKey,
+      body: { email, redirect_to: config().redirectTo || `${location.origin}${location.pathname}` } });
+  }
+  async function updatePassword(password) {
+    await request('/auth/v1/user', { method: 'PUT', body: { password } });
+  }
+  async function updateDisplayName(displayName) {
+    if (!session?.user) throw new Error('auth');
+    const value = displayName.trim().slice(0, 80);
+    await request(`/rest/v1/profiles?id=eq.${encodeURIComponent(session.user.id)}`, {
+      method: 'PATCH', body: { display_name: value }, });
+    profile = { ...(profile || {}), display_name: value }; emit();
+  }
+  async function rpc(name, body) { return request('/rest/v1/rpc/' + name, { method: 'POST', body }); }
+  async function adminListInvites() { return rpc('admin_list_invites', {}); }
+  async function adminCreateInvite(code, maxUses, expiresAt) {
+    return rpc('admin_create_invite', { p_code: code, p_max_uses: maxUses, p_expires_at: expiresAt || null });
+  }
+  async function adminToggleInvite(id, enabled) { return rpc('admin_set_invite_enabled', { p_invite_id: id, p_enabled: enabled }); }
+  function generateInvite() {
+    const bytes = crypto.getRandomValues(new Uint8Array(8));
+    return 'PLN-' + [...bytes].map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+  }
+  function status() {
+    return { configured: configured(), session: session ? { user: session.user } : null, profile, ...state,
+      isAdmin: profile?.role === 'admin', online: navigator.onLine };
+  }
+  function phaseLabel(s = state.phase) {
+    const labels = {
+      local: text('فقط محلی', 'Local only'), unconfigured: text('نیازمند پیکربندی', 'Needs configuration'),
+      offline: text('آفلاین', 'Offline'), needsMigration: text('انتقال داده لازم است', 'Data transfer needed'),
+      pending: text('در انتظار همگام‌سازی', 'Pending sync'), syncing: text('در حال همگام‌سازی', 'Syncing'),
+      synced: text('همگام', 'Synced'), error: text('خطای همگام‌سازی', 'Sync error'),
+    };
+    return labels[s] || labels.local;
+  }
+  function relativeTime(at) {
+    if (!at) return text('هنوز انجام نشده', 'Not yet');
+    return new Date(at).toLocaleString(I18n.get() === 'fa' ? 'fa-IR' : 'en-US');
+  }
+  function field(label, input, hint) { return el('.field', {}, [el('.label', { text: label }), input, hint ? el('.hint', { text: hint }) : null]); }
+  function openAuthModal(mode = 'login') {
+    if (!configured()) { UI.toast('error', safeError('config')); return; }
+    const body = el('.auth-form.col.gap-3');
+    const render = (next) => {
+      body.innerHTML = '';
+      const isLogin = next === 'login', isRecover = next === 'recover';
+      const email = el('input.input.account-email', { type: 'email', autocomplete: 'email', inputmode: 'email', 'aria-label': text('ایمیل', 'Email'),
+        placeholder: 'name@example.com', required: true });
+      const password = el('input.input.account-email', { type: 'password', autocomplete: isLogin ? 'current-password' : 'new-password', 'aria-label': text('رمز عبور', 'Password'),
+        minlength: 8, required: true });
+      const error = el('.err', { role: 'alert', 'aria-live': 'polite' });
+      const statusBox = el('.hint', { role: 'status', 'aria-live': 'polite' });
+      const button = el('button.btn.primary.lg.block', { type: 'button',
+        text: isLogin ? text('ورود', 'Sign in') : isRecover ? text('ارسال لینک بازیابی', 'Send recovery link') : text('ساخت حساب', 'Create account') });
+      const setBusy = (busy, message = '') => { button.disabled = busy; button.textContent = busy ? text('در حال انجام…', 'Working…') :
+        (isLogin ? text('ورود', 'Sign in') : isRecover ? text('ارسال لینک بازیابی', 'Send recovery link') : text('ساخت حساب', 'Create account')); statusBox.textContent = message; };
+      if (!isLogin && !isRecover) {
+        const name = el('input.input', { autocomplete: 'name', maxlength: 80, 'aria-label': text('نام', 'Name'), placeholder: text('نام نمایشی (اختیاری)', 'Display name (optional)') });
+        const invite = el('input.input.invite-code', { autocomplete: 'off', maxlength: 64, 'aria-label': text('کد دعوت', 'Invite code'), placeholder: 'PLN-…', required: true });
+        body.append(field(text('نام', 'Name'), name), field(text('ایمیل', 'Email'), email), field(text('رمز عبور', 'Password'), password, text('حداقل ۸ کاراکتر', 'At least 8 characters')), field(text('کد دعوت', 'Invite code'), invite));
+        button.onclick = async () => {
+          error.textContent = '';
+          if (!email.checkValidity() || password.value.length < 8 || !/^[A-Za-z0-9_-]{6,64}$/.test(invite.value.trim())) {
+            error.textContent = text('ایمیل، رمز عبور و کد دعوت را درست وارد کنید.', 'Enter a valid email, password, and invite code.'); return;
+          }
+          setBusy(true);
+          try { await signUp({ displayName: name.value, email: email.value.trim(), password: password.value, inviteCode: invite.value.trim() });
+            UI.toast('success', text('حساب ساخته شد و ورود انجام شد.', 'Account created and signed in.')); $('.overlay .tb-btn')?.click(); Router.render(); }
+          catch (e) { error.textContent = detailError(e); setBusy(false); }
+        };
+      } else if (isRecover) {
+        body.append(field(text('ایمیل', 'Email'), email));
+        button.onclick = async () => {
+          error.textContent = ''; if (!email.checkValidity()) { error.textContent = text('یک ایمیل معتبر وارد کنید.', 'Enter a valid email.'); return; }
+          setBusy(true); try { await recoverPassword(email.value.trim()); statusBox.textContent = text('اگر حسابی با این ایمیل وجود داشته باشد، لینک بازیابی ارسال می‌شود.', 'If an account exists, a recovery link will be sent.'); button.disabled = false; }
+          catch { error.textContent = safeError('reset'); setBusy(false); }
+        };
+      } else {
+        body.append(field(text('ایمیل', 'Email'), email), field(text('رمز عبور', 'Password'), password));
+        button.onclick = async () => {
+          error.textContent = ''; if (!email.checkValidity() || !password.value) { error.textContent = text('ایمیل و رمز عبور را وارد کنید.', 'Enter email and password.'); return; }
+          setBusy(true); try { await signIn(email.value.trim(), password.value); UI.toast('success', text('خوش آمدید.', 'Welcome back.')); $('.overlay .tb-btn')?.click(); Router.render(); }
+          catch (e) { error.textContent = detailError(e); setBusy(false); }
+        };
+      }
+      body.append(error, statusBox, button,
+        el('.row.between.wrap.gap-2', {}, [
+          !isLogin ? el('button.btn.ghost', { type: 'button', text: text('ورود با حساب موجود', 'Sign in instead'), onclick: () => render('login') }) :
+            el('button.btn.ghost', { type: 'button', text: text('ثبت‌نام با دعوت‌نامه', 'Register with invite'), onclick: () => render('signup') }),
+          !isRecover ? el('button.btn.ghost', { type: 'button', text: text('رمز را فراموش کرده‌ام', 'Forgot password'), onclick: () => render('recover') }) :
+            el('button.btn.ghost', { type: 'button', text: text('بازگشت', 'Back'), onclick: () => render('login') }),
+        ]));
+      setTimeout(() => email.focus(), 0);
+    };
+    render(mode);
+    UI.modal({ title: mode === 'signup' ? text('ساخت حساب Planer', 'Create a Planer account') : text('حساب Planer', 'Planer account'), body, width: '480px' });
+  }
+  async function openAdminModal() {
+    const body = el('.col.gap-4');
+    const list = el('.col.gap-2');
+    const code = el('input.input.invite-code', { value: generateInvite(), maxlength: 64, 'aria-label': text('کد دعوت', 'Invite code') });
+    const maxUses = el('input.input', { type: 'number', min: 1, max: 100000, value: 1, inputmode: 'numeric', 'aria-label': text('سقف استفاده', 'Use limit') });
+    const expires = el('input.input', { type: 'datetime-local', 'aria-label': text('انقضا', 'Expiry') });
+    const message = el('.hint', { role: 'status', 'aria-live': 'polite' });
+    async function refresh() {
+      list.innerHTML = ''; message.textContent = text('در حال دریافت…', 'Loading…');
+      try {
+        const rows = await adminListInvites(); message.textContent = '';
+        if (!rows?.length) list.appendChild(el('.hint', { text: text('هنوز کدی ساخته نشده است.', 'No invite codes yet.') }));
+        for (const row of rows || []) {
+          const exhausted = Number(row.used_count) >= Number(row.max_uses);
+          list.appendChild(el('.row.between.wrap.gap-2', { style: { padding: '10px 12px', background: 'var(--surface-2)', borderRadius: 'var(--r-md)' } }, [
+            el('.col.grow', {}, [el('.small.invite-code', { text: row.code_hint || '••••' }),
+              el('.hint', { text: `${text('استفاده', 'Uses')}: ${row.used_count}/${row.max_uses} · ${row.expires_at ? new Date(row.expires_at).toLocaleString(I18n.get() === 'fa' ? 'fa-IR' : 'en-US') : text('بدون انقضا', 'No expiry')}` })]),
+            el('button.btn.sm' + (row.enabled && !exhausted ? '.outline' : ''), { text: row.enabled ? text('غیرفعال‌کردن', 'Disable') : text('فعال‌کردن', 'Enable'),
+              onclick: async () => { try { await adminToggleInvite(row.id, !row.enabled); refresh(); } catch { UI.toast('error', safeError('generic')); } } }),
+          ]));
+        }
+      } catch { message.textContent = safeError('generic'); }
+    }
+    const create = el('button.btn.primary.lg', { text: text('ساخت کد دعوت', 'Create invite') });
+    create.onclick = async () => {
+      const n = Number(maxUses.value);
+      if (!/^[A-Za-z0-9_-]{6,64}$/.test(code.value.trim()) || !Number.isInteger(n) || n < 1) { message.textContent = text('کد و سقف استفاده معتبر وارد کنید.', 'Enter a valid code and use limit.'); return; }
+      create.disabled = true;
+      try { await adminCreateInvite(code.value.trim(), n, expires.value ? new Date(expires.value).toISOString() : null);
+        message.textContent = text(`کد ${code.value.trim()} ساخته شد؛ آن را اکنون به‌صورت امن ارسال کنید.`, `Code ${code.value.trim()} was created; share it securely now.`);
+        code.value = generateInvite(); maxUses.value = '1'; expires.value = ''; await refresh();
+      } catch { message.textContent = safeError('generic'); } finally { create.disabled = false; }
+    };
+    body.append(el('.hint', { text: text('کد خام فقط همین‌جا هنگام ساخت دیده می‌شود و در دیتابیس به‌صورت هش نگهداری می‌شود.', 'The raw code is shown only at creation time and is stored as a hash.') }),
+      field(text('کد', 'Code'), code), el('.row.gap-2.wrap', {}, [el('.grow', {}, [field(text('سقف استفاده', 'Use limit'), maxUses)]), el('.grow', {}, [field(text('انقضا (اختیاری)', 'Expiry (optional)'), expires)])]), create, message,
+      el('.label', { text: text('کدهای موجود', 'Existing codes') }), list);
+    UI.modal({ title: text('مدیریت دعوت‌نامه‌ها', 'Invite management'), body, width: '620px' });
+    refresh();
+  }
+  async function consumeAuthRedirect() {
+    const fragment = location.hash.startsWith('#') ? new URLSearchParams(location.hash.slice(1)) : null;
+    if (!fragment?.get('access_token')) return false;
+    saveSession({ access_token: fragment.get('access_token'), refresh_token: fragment.get('refresh_token'),
+      token_type: fragment.get('token_type'), expires_in: Number(fragment.get('expires_in') || 0),
+      expires_at: Math.floor(Date.now() / 1000) + Number(fragment.get('expires_in') || 0), user: {} });
+    try {
+      const user = await request('/auth/v1/user');
+      session.user = user; saveSession(session);
+      history.replaceState(null, '', location.pathname + location.search + '#/settings');
+      return true;
+    } catch { saveSession(null); return false; }
+  }
+  function openPasswordUpdate() {
+    const body = el('.auth-form.col.gap-3');
+    const pass = el('input.input.account-email', { type: 'password', autocomplete: 'new-password', minlength: 8, 'aria-label': text('رمز جدید', 'New password') });
+    const err = el('.err', { role: 'alert' });
+    const btn = el('button.btn.primary.lg.block', { text: text('ثبت رمز جدید', 'Save new password'), onclick: async () => {
+      if (pass.value.length < 8) { err.textContent = text('رمز باید حداقل ۸ کاراکتر باشد.', 'Password must be at least 8 characters.'); return; }
+      btn.disabled = true; try { await updatePassword(pass.value); UI.toast('success', text('رمز عبور تغییر کرد.', 'Password updated.')); $('.overlay .tb-btn')?.click(); }
+      catch { err.textContent = safeError('generic'); btn.disabled = false; }
+    }});
+    body.append(field(text('رمز جدید', 'New password'), pass, text('حداقل ۸ کاراکتر', 'At least 8 characters')), err, btn);
+    UI.modal({ title: text('تنظیم رمز جدید', 'Set a new password'), body, width: '440px' });
+  }
+  async function init() {
+    if (initialized) return;
+    initialized = true;
+    const wasRecovery = await consumeAuthRedirect();
+    saveSession(session || loadSession());
+    if (session && configured()) {
+      try { await beginForSession(); } catch { saveSession(null); setState({ phase: 'local' }); }
+    } else setState({ phase: configured() ? 'local' : 'unconfigured' });
+    Bus.on('data:change', (evt) => { queueLocalChange(evt).catch(() => {}); });
+    Bus.on('prefs:change', (evt = {}) => {
+      const keys = evt.key ? [evt.key] : Object.keys(evt.patch || {});
+      if (!applyingRemotePrefs && session?.user && keys.some(key => !DEVICE_PREFS.has(key))) {
+        queue('preferences', { values: publicPrefs(), updatedAt: Date.now(), version: 1 }, 'main').catch(() => {});
+      }
+    });
+    window.addEventListener('focus', () => schedule());
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) schedule(); });
+    if (wasRecovery) setTimeout(openPasswordUpdate, 400);
+  }
+  function networkChanged() {
+    if (!navigator.onLine) setState({ phase: 'offline' });
+    else if (session?.user) { setState({ phase: 'pending', error: null }); schedule(); }
+    else emit();
+  }
+  return { init, configured, status, phaseLabel, relativeTime, localCounts, migrateDeviceData, syncNow, networkChanged,
+    signOut, updateDisplayName, openAuthModal, openAdminModal, generateInvite, openPasswordUpdate };
 })();
 
 /* ---------------------------------------------------------------------------
@@ -3427,8 +3890,10 @@ const Layout = (() => {
     UI.toast('info', I18n.t('theme') + ': ' + I18n.t('theme_' + next)); }
 
   function refreshNet() { const p = $('#netPill'); if (!p) return;
-    p.querySelector('span').textContent = navigator.onLine ? I18n.t('online') : I18n.t('offline');
-    p.querySelector('.dot').style.background = navigator.onLine ? 'var(--green)' : 'var(--text-3)'; }
+    const c = Cloud.status();
+    p.querySelector('span').textContent = c.session ? Cloud.phaseLabel() : (navigator.onLine ? I18n.t('online') : I18n.t('offline'));
+    p.querySelector('.dot').style.background = !navigator.onLine ? 'var(--text-3)' :
+      c.phase === 'error' ? 'var(--red)' : c.phase === 'syncing' ? 'var(--brand)' : 'var(--green)'; }
 
   return { build, setActive, setTitle, refreshNet, refreshBadge, addForRoute, NAV, TABS };
 })();
@@ -3649,7 +4114,7 @@ const Settings = (() => {
   async function render() {
     const p = Prefs.get();
     const counts = await DB.counts();
-    const totalRecords = Object.values(counts).reduce((a, b) => a + b, 0);
+    const totalRecords = Object.entries(counts).filter(([k]) => !['syncQueue', 'kv'].includes(k)).reduce((a, [, b]) => a + b, 0);
     const wrap = el('.col.gap-6');
     wrap.appendChild(Views.pageHeader(I18n.t('settings'), I18n.t('tagline')));
 
@@ -3725,6 +4190,62 @@ const Settings = (() => {
       el('.divider'),
       rowItem(I18n.t('dateSystem'), dateSysSeg, I18n.t('dateSystemHint')),
     ]));
+
+    /* Account & cloud sync are opt-in: a pre-existing local install is never
+       uploaded merely because somebody logs in. */
+    const cloud = Cloud.status();
+    const cloudRows = [];
+    const phaseClass = ['synced', 'syncing', 'error', 'offline'].includes(cloud.phase) ? cloud.phase : 'local';
+    const statusChip = el('.chip.sync-state.' + phaseClass, {}, [el('.dot'), el('span', { text: Cloud.phaseLabel() })]);
+    if (!cloud.configured) {
+      cloudRows.push(
+        rowItem('حساب کاربری', statusChip, 'برای فعال‌کردن ورود و همگام‌سازی، فایل supabase-config.js را طبق راهنما بسازید.'),
+        el('.hint', { text: 'تا آن زمان Planer کاملاً محلی و آفلاین باقی می‌ماند.' }),
+      );
+    } else if (!cloud.session) {
+      cloudRows.push(
+        rowItem('حساب کاربری', el('button.btn.primary', { text: 'ورود یا ثبت‌نام', onclick: () => Cloud.openAuthModal('login') }),
+          'ثبت‌نام فقط با کد دعوت معتبر انجام می‌شود.'),
+        rowItem('همگام‌سازی', statusChip, 'داده‌ها تا پیش از ورود فقط در همین دستگاه نگهداری می‌شوند.'),
+      );
+    } else {
+      const accountName = el('input.input', { value: cloud.profile?.display_name || '', maxlength: 80, 'aria-label': 'نام نمایشی', style: { maxWidth: '220px' },
+        oninput: debounce(async (e) => { try { await Cloud.updateDisplayName(e.target.value); } catch { UI.toast('error', 'نام حساب ذخیره نشد.'); } }, 500) });
+      const syncHint = cloud.phase === 'needsMigration'
+        ? 'داده‌های فعلی این دستگاه هنوز به حساب منتقل نشده‌اند.'
+        : `آخرین همگام‌سازی: ${Cloud.relativeTime(cloud.lastSync)}`;
+      cloudRows.push(
+        rowItem('حساب', el('.col.gap-1', {}, [el('.small.account-email', { text: cloud.session.user?.email || '' }),
+          el('.hint', { text: cloud.profile?.role === 'admin' ? 'مدیر' : 'کاربر' })])),
+        el('.divider'),
+        rowItem('نام نمایشی', accountName),
+        el('.divider'),
+        rowItem('وضعیت همگام‌سازی', statusChip, syncHint),
+      );
+      const actions = [
+        el('button.btn.outline', { text: 'همگام‌سازی اکنون', disabled: cloud.phase === 'needsMigration',
+          onclick: async () => { const ok = await Cloud.syncNow(); UI.toast(ok ? 'success' : 'error', ok ? 'همگام‌سازی انجام شد.' : 'همگام‌سازی انجام نشد؛ داده‌های محلی محفوظ هستند.'); Router.render(); } }),
+      ];
+      if (cloud.phase === 'needsMigration') {
+        const summary = await Cloud.localCounts();
+        actions.push(el('button.btn.primary', { text: 'انتقال داده‌های این دستگاه به حساب', onclick: async () => {
+          const ok = await UI.confirm({ title: 'انتقال داده‌های محلی', confirmLabel: 'شروع انتقال',
+            message: `${I18n.num(summary.total)} رکورد از این دستگاه به حساب شما منتقل می‌شود. ابتدا یک نسخهٔ پشتیبان محلی ساخته می‌شود. انتقال تکراری رکورد جدیدی با شناسهٔ یکسان نمی‌سازد.` });
+          if (!ok) return;
+          try {
+            const result = await Cloud.migrateDeviceData();
+            UI.toast('success', result.already ? 'این دستگاه قبلاً منتقل شده است.' : `${I18n.num(result.total)} رکورد برای همگام‌سازی آماده شد.`);
+            Router.render();
+          } catch { UI.toast('error', 'انتقال انجام نشد؛ داده‌های محلی تغییر نکردند.'); }
+        } }));
+      }
+      if (cloud.isAdmin) actions.push(el('button.btn.outline', { text: 'مدیریت دعوت‌نامه‌ها', onclick: () => Cloud.openAdminModal() }));
+      actions.push(el('button.btn.danger', { text: 'خروج از حساب', onclick: async () => {
+        await Cloud.signOut(); UI.toast('success', 'از حساب خارج شدید.'); Router.render();
+      } }));
+      cloudRows.push(el('.divider'), el('.row.wrap.gap-2', {}, actions));
+    }
+    wrap.appendChild(section('حساب و همگام‌سازی', cloudRows));
 
     /* Data & backup — ONE section for everything backup-related (previously
        split into "Data" + a duplicate "Create restore point" button hidden
@@ -9022,6 +9543,8 @@ async function boot() {
   }
   registerRoutes();
   Layout.build();
+  await Cloud.init();
+  Layout.refreshNet();
   Router.init();
   Shortcuts.init();
   PWA.init();
@@ -9032,8 +9555,9 @@ async function boot() {
     document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
 
   // Live systems
-  window.addEventListener('online', () => { Layout.refreshNet(); UI.toast('success', I18n.t('online')); });
-  window.addEventListener('offline', () => Layout.refreshNet());
+  window.addEventListener('online', () => { Cloud.networkChanged(); Layout.refreshNet(); UI.toast('success', I18n.t('online')); });
+  window.addEventListener('offline', () => { Cloud.networkChanged(); Layout.refreshNet(); });
+  Bus.on('cloud:status', () => { Layout.refreshNet(); if (Router.current() === 'settings') Router.render(); });
   Bus.on('lang:change', () => { Layout.build(); Router.render(); });
 
   // App lock must be armed before anything else becomes reachable.
@@ -9060,7 +9584,7 @@ document.addEventListener('DOMContentLoaded', boot);
 return { Bus, Prefs, I18n, Jalali, Theme, DB, UI, Router, Layout, Command, Views, Settings, PWA,
   Capture, Tasks, TaskUI, Today, PlanView, ReportsView, Week, Month, Goals, GoalsView, Roadmap, Habits, HabitsView, Markdown, Notes, NotesView, Charts, Finance, FinanceView,
   Focus, FocusView, Health, HealthView, History, HistoryView, Stats, StatsView, Search,
-  Reviews, ReviewsView, Notify, Lock, Recovery, Insights, AI, AssistantView,
+  Reviews, ReviewsView, Notify, Lock, Recovery, Insights, AI, AssistantView, Cloud,
   el, $, $$, icon, uid, debounce, version: '1.5.0-rework' };
 })();
 

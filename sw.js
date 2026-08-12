@@ -9,7 +9,7 @@
 // cache whose name differs from this constant, so the bump is what actually
 // evicts the previous shell — leave it alone and an installed PWA can keep
 // serving the old app from cache long after a deploy.
-const CACHE = 'planer-shell-v5-pwa-icons';
+const CACHE = 'planer-shell-v6-cloud-account';
 
 self.addEventListener('install', () => { self.skipWaiting(); });
 
@@ -23,6 +23,9 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  // Authentication and API responses must never be placed in the PWA shell
+  // cache. The app shell is same-origin; Supabase is deliberately cross-origin.
+  if (new URL(e.request.url).origin !== self.location.origin) return;
   e.respondWith(
     fetch(e.request)
       .then((res) => {

@@ -1,2 +1,7 @@
 # Local Claude Code tooling/config — not part of the deployed app
 .claude/
+
+# Local Supabase/browser configuration — never commit keys, even public ones.
+supabase-config.js
+.env
+.env.local
