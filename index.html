@@ -1740,40 +1740,69 @@ const Jalali = (() => {
    part of your sentence is worse than no parser, because "فردا را برنامه‌ریزی
    کن" is a legitimate title. */
 const Capture = (() => {
-  /* Normalisation is load-bearing. Persian text carries ZWNJ (U+200C) inside
-     ordinary words — پس‌فردا, نیمه‌شب — and Arabic keyboards produce ي/ك where
-     Persian expects ی/ک. Skip this and the most common words simply never
-     match, silently. */
-  /* Every replacement here is one character for one character, so the result
-     lines up index-for-index with the input. That alignment is what lets the
-     title be sliced out of the ORIGINAL text: normalisation is for MATCHING
-     only, and must never reach what gets saved — otherwise "خرید ۲ کیلو سیب"
-     is stored as "خرید 2 کیلو سیب" and the user's digits are quietly rewritten.
-     Note there is deliberately no \s+ collapsing: that would break alignment.
+  /* Normalisation is load-bearing, and every replacement is ONE character for
+     one character, so the result lines up index-for-index with the input. That
+     alignment is what lets the title be sliced out of the ORIGINAL text:
+     normalisation exists for MATCHING only and must never reach what gets
+     saved, or "خرید ۲ کیلو سیب" is stored as "خرید 2 کیلو سیب" and the user's
+     digits are quietly rewritten. There is deliberately no \s+ collapsing —
+     that would break alignment.
 
-     ZWNJ is deliberately NOT flattened to a space. It is an internal joiner
-     (پس‌فردا, سه‌شنبه), not a word boundary — flattening it makes the weekday
-     inside a compound like "سه‌شنبه‌بازار" look like a standalone date. It is
-     instead allowed *within* a pattern via flex(), while boundaries stay
-     whitespace-only. */
+     ZWNJ is deliberately NOT flattened to a space. It joins words (پس‌فردا,
+     سه‌شنبه, نیمه‌شب) rather than separating them; flattening it makes the
+     weekday inside a compound like "سه‌شنبه‌بازار" look like a standalone date.
+     It is instead allowed *within* a pattern via flex(), while word boundaries
+     stay whitespace-only. */
   const norm = (s) => toLatinDigits(s).replace(/[يى]/g, 'ی').replace(/ك/g, 'ک');
 
-  /** A word whose internal spaces/ZWNJ match either spelling. */
+  /** A literal whose internal spaces/ZWNJ match either spelling. */
   const flex = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[\s\u200c]+/g, '[\\s\\u200c]*');
 
-  const REL = { 'امروز': 0, 'فردا': 1, 'پس فردا': 2, 'پسفردا': 2, 'دیروز': -1, 'پریروز': -2 };
-  const MERIDIEM = { 'صبح': 'am', 'ظهر': 'noon', 'بعدازظهر': 'pm', 'بعد از ظهر': 'pm', 'عصر': 'pm', 'شب': 'pm', 'نیمه شب': 'mid' };
-  const PRIORITY = [['فوری', 'urgent'], ['خیلی مهم', 'urgent'], ['مهم', 'high']];
-
-  const pad = (n) => String(n).padStart(2, '0');
-
-  /** Word-boundary matcher. \b is useless for Persian (it is defined over
-      [A-Za-z0-9_]), so bound on real whitespace / string edges instead —
-      notably NOT on ZWNJ, which joins words rather than separating them. */
+  /** Word-boundary matcher. \b is defined over [A-Za-z0-9_] and is useless for
+      Persian, so bound on real whitespace / string edges — notably NOT on
+      ZWNJ. Group 1 is the boundary, group 2 the word. */
   const wordRe = (body, flags = '') => new RegExp('(^|\\s)(' + body + ')(?=\\s|$)', flags);
   const word = (w, flags = '') => wordRe(flex(w), flags);
 
-  /** Original text minus the given [start,end) spans, whitespace tidied. */
+  const REL = { 'امروز': 0, 'فردا': 1, 'پس فردا': 2, 'پسفردا': 2, 'دیروز': -1, 'پریروز': -2 };
+  const MERIDIEM = { 'صبح': 'am', 'ظهر': 'noon', 'بعدازظهر': 'pm', 'بعد از ظهر': 'pm', 'عصر': 'pm', 'شب': 'night', 'نیمه شب': 'mid' };
+  /* Longest first: "خیلی مهم" must win over "مهم". `medium` for a single "!" is
+     deliberate — the app's own Tasks.PRIORITIES is
+     none|low|medium|high|urgent and has no 'normal', so emitting 'normal'
+     would store a priority that sorting, the ranking weights and the i18n
+     dictionary all fail to resolve. */
+  const PRIORITY = [['فوری', 'urgent'], ['خیلی مهم', 'urgent'], ['مهم', 'high']];
+  const BANG = { 3: 'urgent', 2: 'high', 1: 'medium' };
+
+  /* ---- context gating --------------------------------------------------
+     A word-boundary match is NOT enough. "فردا" in «فردا را برنامه‌ریزی کن» is
+     the object of the sentence, not a due date, and eating it leaves the user
+     with a mangled title silently filed on the wrong day. Not recognising
+     something is always cheaper than recognising it wrongly.
+
+     These are the Persian function words that mark the neighbour as part of
+     the sentence's grammar rather than a label attached to the task. */
+  const AFTER_BLOCK = ['را', 'است', 'بود', 'هست', 'نیست', 'باشد', 'گذشته', 'میشه', 'می شود'];
+  const BEFORE_BLOCK = ['درباره', 'دربارهٔ', 'راجع', 'بابت', 'درمورد', 'مورد', 'برای'];
+
+  const bare = (w) => String(w || '').replace(/[\u200c]/g, '').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+  const nextWord = (text, end) => bare((text.slice(end).match(/^\s*(\S+)/) || [, ''])[1]);
+  const prevWord = (text, start) => bare((text.slice(0, start).match(/(\S+)\s*$/) || [, ''])[1]);
+
+  /** True when the span is being used grammatically, so must stay in the title. */
+  function blocked(text, start, end) {
+    const after = nextWord(text, end), before = prevWord(text, start);
+    return AFTER_BLOCK.some(w => bare(w) === after) || BEFORE_BLOCK.some(w => bare(w) === before);
+  }
+  /** True when nothing but whitespace/punctuation sits before or after. */
+  function atEdge(text, start, end) {
+    return !/[\p{L}\p{N}]/u.test(text.slice(0, start)) || !/[\p{L}\p{N}]/u.test(text.slice(end));
+  }
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const validTime = (h, m) => h >= 0 && h <= 23 && m >= 0 && m <= 59;
+
+  /** Original text minus the given [start,end) spans, tidied. */
   function strip(original, spans) {
     let s = '', at = 0;
     for (const [a, b] of spans.slice().sort((x, y) => x[0] - y[0])) {
@@ -1781,138 +1810,272 @@ const Capture = (() => {
       s += ' ';
       at = Math.max(at, b);
     }
-    return (s + original.slice(at)).replace(/\s+/g, ' ').trim();
+    return (s + original.slice(at))
+      .replace(/\s+/g, ' ')
+      .replace(/\s+([،,.!؟?:;])/g, '$1')          // don't leave a gap before punctuation
+      .replace(/^[\s،,\-–—:;!]+|[\s،,\-–—:;]+$/g, '')
+      .trim();
   }
 
-  /** Title as it would be if the listed field kinds were NOT extracted. Used
-      by the undo chips: dismissing "date" must restore the sentence exactly,
-      not append the matched fragment to the end of what's left. */
-  function titleWithout(original, matched, ignoredKinds) {
-    const spans = matched.filter(m => m.at && !ignoredKinds.has(m.kind)).map(m => m.at);
-    const t = strip(original, spans);
-    return t || String(original).trim();
+  /** Title as it would be if the listed field types were NOT extracted — used
+      by the undo chips, so dismissing one restores the sentence exactly
+      instead of gluing the fragment onto the end. */
+  function titleWithout(original, matched, ignoredTypes) {
+    const spans = matched.filter(m => !ignoredTypes.has(m.type)).map(m => [m.start, m.end]);
+    return strip(original, spans) || String(original).trim();
   }
 
-  function parse(input, { today = Jalali.todayKey() } = {}) {
+  function parse(input, options = {}) {
+    const today = options.todayKey || options.today || Jalali.todayKey();
     const original = String(input == null ? '' : input);
-    // `text` is the aligned normalised copy used for matching. Consumed spans
-    // are blanked with spaces rather than spliced out, so every index stays
-    // valid against `original` and nothing can be matched twice.
+    /* `text` is the aligned normalised copy used for matching. Consumed spans
+       are blanked with spaces rather than spliced out, so every index stays
+       valid against `original` and nothing can be matched twice. */
     let text = norm(original);
-    const cuts = [];
     const matched = [];
-    const out = { title: '', date: null, dueTime: null, priority: null, matched };
+    const out = { title: '', date: null, dueTime: null, priority: null, matched, valid: true, reason: null };
 
-    const cut = (start, end, kind, value, label) => {
-      cuts.push([start, end]);
+    const claim = (start, end, type, value, hidden) => {
       text = text.slice(0, start) + ' '.repeat(end - start) + text.slice(end);
-      // `at` lets the UI rebuild the title exactly when a chip is dismissed,
-      // rather than gluing the matched fragment back on the end.
-      matched.push({ kind, value, text: original.slice(start, end), label, at: [start, end] });
+      const m = { type, raw: original.slice(start, end), value, start, end };
+      if (hidden) m.hidden = true;   // removed from the title, but no chip of its own
+      matched.push(m);
     };
-    const eat = (re, kind, value, label) => {
+    /** Try a regex, honouring the context gate unless `gate` says otherwise. */
+    const take = (re, type, valueOf, gate = blocked) => {
       const m = text.match(re);
       if (!m) return false;
-      const lead = m[1] ? m[1].length : 0;          // the (^|\s) boundary group
-      cut(m.index + lead, m.index + m[0].length, kind, value, label);
+      const lead = m[1] ? m[1].length : 0;
+      const start = m.index + lead, end = m.index + m[0].length;
+      const value = valueOf(m);
+      if (value == null) return false;
+      if (gate === blocked ? blocked(text, start, end) : !gate(text, start, end)) return false;
+      claim(start, end, type, value);
       return true;
     };
-    const residual = () => strip(original, cuts);
+    // Hidden entries are title-stripping bookkeeping, not a resolved field.
+    const has = (type) => matched.some(x => x.type === type && !x.hidden);
 
-    /* --- time ------------------------------------------------------------
-       Most specific first: HH:MM, then "ساعت N", then "N <meridiem>". */
-    const hhmm = text.match(/(^|\s)(\d{1,2}):(\d{2})(?=\s|$)/);
-    if (hhmm) {
-      const h = +hhmm[2], m = +hhmm[3];
-      if (h <= 23 && m <= 59) eat(/(^|\s)(\d{1,2}:\d{2})(?=\s|$)/, 'time', pad(h) + ':' + pad(m), pad(h) + ':' + pad(m));
+    /* ---- time --------------------------------------------------------- */
+    // HH:MM. Swallows a directly preceding "ساعت" so the title doesn't keep it.
+    (() => {
+      const m = text.match(/(^|\s)((?:ساعت[\s\u200c]*)?(\d{1,2}):(\d{2}))(?=\s|$)/);
+      if (!m) return;
+      const h = +m[3], min = +m[4];
+      if (!validTime(h, min)) return;               // 24:00 / 17:70 stay in the title
+      const lead = m[1] ? m[1].length : 0;
+      const start = m.index + lead, end = m.index + m[0].length;
+      if (blocked(text, start, end)) return;
+      claim(start, end, 'time', pad(h) + ':' + pad(min));
+    })();
+
+    // "ساعت ۱۷" — the explicit keyword is the evidence that the number is a time.
+    if (!has('time')) {
+      take(/(^|\s)(ساعت[\s\u200c]*(\d{1,2}))(?=\s|$)/, 'time',
+        (m) => (validTime(+m[3], 0) ? pad(+m[3]) + ':00' : null));
     }
-    if (!out.dueTime && !matched.some(x => x.kind === 'time')) {
-      const at = text.match(/(^|\s)(ساعت\s+(\d{1,2}))(?=\s|$)/);
-      if (at && +at[3] <= 23) eat(/(^|\s)(ساعت\s+\d{1,2})(?=\s|$)/, 'time', pad(+at[3]) + ':00', pad(+at[3]) + ':00');
-    }
-    if (!matched.some(x => x.kind === 'time')) {
+
+    // "۵ عصر" / "۸ شب" / "۱۲ ظهر" — a bare number is only a time when a
+    // meridiem word vouches for it.
+    if (!has('time')) {
       const mer = Object.keys(MERIDIEM).sort((a, b) => b.length - a.length).map(flex).join('|');
-      const m = text.match(new RegExp('(^|\\s)((\\d{1,2})\\s*(' + mer + '))(?=\\s|$)'));
-      if (m) {
-        let h = +m[3]; const kind = MERIDIEM[m[4]];
-        if (h <= 23) {
-          if (kind === 'pm' && h < 12) h += 12;
-          else if (kind === 'am' && h === 12) h = 0;
-          else if (kind === 'noon') h = 12;
-          else if (kind === 'mid') h = 0;
-          eat(new RegExp('(^|\\s)(\\d{1,2}\\s*(?:' + mer + '))(?=\\s|$)'), 'time', pad(h) + ':00', pad(h) + ':00');
-        }
-      }
+      take(new RegExp('(^|\\s)((\\d{1,2})[\\s\\u200c]*(' + mer + '))(?=\\s|$)'), 'time', (m) => {
+        let h = +m[3];
+        if (h > 23) return null;
+        const kind = MERIDIEM[m[4].replace(/\u200c/g, ' ').replace(/\s+/g, ' ')] || MERIDIEM[m[4]] ||
+          MERIDIEM[Object.keys(MERIDIEM).find(k => new RegExp('^' + flex(k) + '$').test(m[4]))];
+        if (kind === 'pm' && h < 12) h += 12;
+        else if (kind === 'night') h = h === 12 ? 0 : (h < 12 ? h + 12 : h);  // ۱۲ شب = 00:00
+        else if (kind === 'am' && h === 12) h = 0;
+        else if (kind === 'noon') h = 12;
+        else if (kind === 'mid') h = 0;
+        return pad(h) + ':00';
+      });
     }
-    // Bare "نیمه شب" / "ظهر" with no number.
-    if (!matched.some(x => x.kind === 'time')) {
-      if (word('نیمه شب').test(text)) eat(word('نیمه شب'), 'time', '00:00', '00:00');
-      else if (word('ظهر').test(text)) eat(word('ظهر'), 'time', '12:00', '12:00');
+
+    // Bare "نیمه‌شب" / "ظهر". Gated: «نیمه‌شب گذشته» is a past reference.
+    if (!has('time')) {
+      if (!take(word('نیمه شب'), 'time', () => '00:00')) take(word('ظهر'), 'time', () => '12:00');
     }
-    const t = matched.find(x => x.kind === 'time');
-    if (t) out.dueTime = t.value;
+    const tm = matched.find(x => x.type === 'time');
+    if (tm) out.dueTime = tm.value;
 
-    /* --- date ------------------------------------------------------------ */
-    // "N روز دیگر" / "N روز بعد"
-    const inDays = text.match(/(^|\s)((\d{1,3})\s*روز\s*(?:دیگر|بعد))(?=\s|$)/);
-    if (inDays) eat(/(^|\s)(\d{1,3}\s*روز\s*(?:دیگر|بعد))(?=\s|$)/, 'date',
-      Jalali.addDays(today, +inDays[3]), null);
+    /* ---- date --------------------------------------------------------- */
+    take(/(^|\s)((\d{1,3})[\s\u200c]*روز[\s\u200c]*(?:دیگر|بعد))(?=\s|$)/, 'date',
+      (m) => Jalali.addDays(today, +m[3]));
 
-    if (!matched.some(x => x.kind === 'date')) {
+    if (!has('date')) {
       // Longest first so "پس فردا" wins over "فردا".
       for (const w of Object.keys(REL).sort((a, b) => b.length - a.length)) {
-        if (word(w).test(text)) { eat(word(w), 'date', Jalali.addDays(today, REL[w]), null); break; }
+        if (take(word(w), 'date', () => Jalali.addDays(today, REL[w]))) break;
       }
     }
 
-    if (!matched.some(x => x.kind === 'date')) {
-      // Weekday names, optionally prefixed by "هفته بعد/آینده" → skip a week.
-      // wordRe, not word(): the body is already an alternation and flex()
-      // would escape the "|" into a literal.
+    if (!has('date')) {
+      /* Weekday names, with two ways to push to the following week:
+         "هفته بعد شنبه" (prefix) and "شنبه آینده" (suffix). Source of truth is
+         Jalali.weekdays.fa — no second copy of the day names. */
       const NEXT_WEEK = wordRe(['هفته بعد', 'هفته آینده', 'هفته دیگر'].map(flex).join('|'));
-      const names = Jalali.weekdays.fa;
-      const nextWeek = NEXT_WEEK.test(text);
+      const SUFFIX = ['آینده', 'بعد', 'دیگر'];
+      /* LONGEST NAME FIRST. "شنبه" is a suffix of "سه‌شنبه"/"پنجشنبه", and with
+         ZWNJ normalised to an optional space it also matches the tail of the
+         two-word spelling "سه شنبه" — so scanning in weekday order silently
+         resolves Tuesday as Saturday. Index is carried along because it is
+         what the day-delta is computed from. */
+      const names = Jalali.weekdays.fa.map((name, i) => ({ name, i }))
+        .sort((a, b) => b.name.length - a.name.length);
       const cur = Jalali.parseKey(today).wd;
-      let hit = false;
-      for (let i = 0; i < names.length; i++) {
-        if (!word(names[i]).test(text)) continue;
-        let delta = (i - cur + 7) % 7;
-        if (delta === 0) delta = 7;                 // "شنبه" on a Saturday means the next one
-        if (nextWeek) { delta += 7; eat(NEXT_WEEK, 'weekmod', null, null); }
-        eat(word(names[i]), 'date', Jalali.addDays(today, delta), null);
-        hit = true;
+      const prefixNext = NEXT_WEEK.test(text);
+      for (const { name, i } of names) {
+        const m = text.match(word(name));
+        if (!m) continue;
+        const lead = m[1] ? m[1].length : 0;
+        let start = m.index + lead, end = m.index + m[0].length;
+        if (blocked(text, start, end)) break;
+        // A weekday alone means its NEXT occurrence, never today.
+        let delta = ((i - cur + 7) % 7) || 7;
+        const suffix = nextWord(text, end);
+        if (SUFFIX.some(s => bare(s) === suffix)) {
+          delta += 7;
+          end = text.slice(end).match(/^\s*\S+/)[0].length + end;   // swallow the suffix word
+        } else if (prefixNext) {
+          delta += 7;
+          const nm = text.match(NEXT_WEEK);
+          const nlead = nm[1] ? nm[1].length : 0;
+          /* Claimed as a hidden part of the SAME date match, not as its own
+             type. It must come out of the title, but the user should see one
+             date chip rather than two — and dismissing that chip has to put
+             "هفته بعد" back along with the weekday. */
+          claim(nm.index + nlead, nm.index + nm[0].length, 'date', null, true);
+        }
+        claim(start, end, 'date', Jalali.addDays(today, delta));
         break;
       }
-      // "هفته بعد" on its own is a week from today — it must not need a weekday
-      // to mean something.
-      if (!hit && nextWeek) eat(NEXT_WEEK, 'date', Jalali.addDays(today, 7), null);
+      // "هفته بعد" on its own is a week from today.
+      if (!has('date') && prefixNext) take(NEXT_WEEK, 'date', () => Jalali.addDays(today, 7));
     }
-    // The week modifier is bookkeeping, not a field the user should see a chip for.
-    for (let i = matched.length - 1; i >= 0; i--) if (matched[i].kind === 'weekmod') matched.splice(i, 1);
-    const d = matched.find(x => x.kind === 'date');
-    if (d) { out.date = d.value; d.label = Jalali.label(d.value); }
+    const dt = matched.find(x => x.type === 'date' && x.value != null);
+    if (dt) out.date = dt.value;
 
-    /* --- priority --------------------------------------------------------- */
-    for (const [w, level] of PRIORITY) {
-      if (word(w).test(text)) { eat(word(w), 'priority', level, null); break; }
+    /* ---- priority ------------------------------------------------------
+       Positional, per spec: a priority word only counts as a marker at the
+       start or the end of the text. Mid-sentence it is an ordinary adjective
+       — «این کار مهم است», «اولویت مهم پروژه» — and must stay in the title. */
+    for (const [w, level] of PRIORITY.slice().sort((a, b) => b[0].length - a[0].length)) {
+      if (take(word(w), 'priority', () => level, atEdge)) break;
     }
-    if (!matched.some(x => x.kind === 'priority')) {
-      const m = text.match(/(!{1,3})(?=\s|$)/);
-      if (m) cut(m.index, m.index + m[1].length, 'priority',
-        m[1].length >= 3 ? 'urgent' : m[1].length === 2 ? 'high' : 'medium', null);
+    if (!has('priority')) {
+      // "!" markers are unambiguous punctuation, so they need no position rule.
+      const m = text.match(/(!{1,3})/);
+      if (m) claim(m.index, m.index + m[1].length, 'priority', BANG[m[1].length] || 'urgent');
     }
-    const p = matched.find(x => x.kind === 'priority');
-    if (p) out.priority = p.value;
+    const pr = matched.find(x => x.type === 'priority');
+    if (pr) out.priority = pr.value;
 
-    out.title = residual();
-    /* Never hand back an empty title: if the whole sentence was date/time
-       words, the words WERE the task ("فردا" as a reminder to look at
-       tomorrow). Keep the original and drop the extraction. */
-    if (!out.title) { out.title = original.trim(); out.date = null; out.dueTime = null; out.priority = null; matched.length = 0; }
+    /* ---- title -------------------------------------------------------- */
+    out.title = strip(original, matched.map(m => [m.start, m.end]));
+    /* Never produce a task with no name. If the whole sentence parsed away,
+       the words WERE the task — keep them and drop the extraction. */
+    if (!out.title) {
+      out.title = original.trim();
+      out.date = out.dueTime = out.priority = null;
+      matched.length = 0;
+    }
+    if (!out.title) { out.valid = false; out.reason = 'empty_title'; }
     return out;
   }
 
-  return { parse, norm, titleWithout };
+  /* ---- permanent headless test suite ----------------------------------
+     Runs with no DOM: App.Capture.runTests() in the console. */
+  const D = (n) => Jalali.addDays(Jalali.todayKey(), n);
+  const WD = (name, extraWeeks = 0) => {
+    const i = Jalali.weekdays.fa.indexOf(name);
+    const cur = Jalali.parseKey(Jalali.todayKey()).wd;
+    return Jalali.addDays(Jalali.todayKey(), (((i - cur + 7) % 7) || 7) + 7 * extraWeeks);
+  };
+  const tests = [
+    // --- the twelve mandated cases ---
+    ['فردا ۵ عصر دندانپزشکی', { title: 'دندانپزشکی', date: () => D(1), dueTime: '17:00' }],
+    ['پس‌فردا ۸ شب فوری تماس با مشتری', { title: 'تماس با مشتری', date: () => D(2), dueTime: '20:00', priority: 'urgent' }],
+    ['۳ روز دیگر ۱۲ ظهر پرداخت قبض !!!', { title: 'پرداخت قبض', date: () => D(3), dueTime: '12:00', priority: 'urgent' }],
+    ['دندانپزشکی فردا ۵ عصر', { title: 'دندانپزشکی', date: () => D(1), dueTime: '17:00' }],
+    ['جلسه ساعت ١٧:٣٠', { title: 'جلسه', dueTime: '17:30' }],
+    ['نیمه شب بررسی سرور', { title: 'بررسی سرور', dueTime: '00:00' }],
+    ['فردا را برنامه‌ریزی کن', { title: 'فردا را برنامه‌ریزی کن', date: null }],
+    ['امروزنامه را بخوان', { date: null }],
+    ['فردا ۵ تا کتاب بخر', { dueTime: null }],
+    ['جلسه ساعت 24:00', { dueTime: null }],
+    ['پیشنهاد مهمی دارم', { priority: null }],
+    ['فردا', { titleNotEmpty: true }],
+    // --- conservatism: must stay in the title ---
+    ['برنامه فردا را بنویس', { date: null }],
+    ['جلسه‌ای درباره فردا', { date: null }],
+    ['فردایی بهتر بساز', { date: null }],
+    ['این کار مهم است', { priority: null }],
+    ['کار مهم امروز را تمام کن', { priority: null, date: null }],
+    ['اولویت مهم پروژه', { priority: null }],
+    ['نیمه‌شب گذشته بیدار شدم', { dueTime: null }],
+    ['صبحانه بخور', { dueTime: null }],
+    ['ساعت رومیزی بخر', { dueTime: null }],
+    ['جلسه ساعت‌ها طول می‌کشد', { dueTime: null }],
+    ['شبانه‌روز کار', { dueTime: null }],
+    ['۱۵ دقیقه مطالعه', { dueTime: null }],
+    ['گزارش ۱۲ ماهه', { dueTime: null }],
+    ['جلسه ۱۷:۷۰', { dueTime: null }],
+    ['جلسه ۱۹:۹۹', { dueTime: null }],
+    ['جلسه ساعت ۲۵', { dueTime: null }],
+    // --- dates ---
+    ['پس فردا جلسه تیم', { title: 'جلسه تیم', date: () => D(2) }],
+    ['پسفردا جلسه تیم', { title: 'جلسه تیم', date: () => D(2) }],
+    ['دیروز گزارش', { title: 'گزارش', date: () => D(-1) }],
+    ['پریروز گزارش', { title: 'گزارش', date: () => D(-2) }],
+    ['۳ روز بعد پرداخت قبض', { title: 'پرداخت قبض', date: () => D(3) }],
+    ['شنبه هفته بعد خرید خانه', { title: 'خرید خانه', date: () => WD('شنبه', 1) }],
+    ['شنبه آینده خرید خانه', { title: 'خرید خانه', date: () => WD('شنبه', 1) }],
+    ['شنبه خرید خانه', { title: 'خرید خانه', date: () => WD('شنبه', 0) }],
+    ['سه‌شنبه جلسه', { title: 'جلسه', date: () => WD('سه‌شنبه', 0) }],
+    ['سه شنبه جلسه', { title: 'جلسه', date: () => WD('سه‌شنبه', 0) }],
+    ['بررسی سه‌شنبه‌بازار', { date: null }],
+    // --- times ---
+    ['ساعت ۱۷ جلسه', { title: 'جلسه', dueTime: '17:00' }],
+    ['ساعت 17 جلسه', { title: 'جلسه', dueTime: '17:00' }],
+    ['جلسه ۱۷:۳۰', { title: 'جلسه', dueTime: '17:30' }],
+    ['قرار ۵ بعدازظهر', { title: 'قرار', dueTime: '17:00' }],
+    ['قرار ۸ صبح', { title: 'قرار', dueTime: '08:00' }],
+    ['دارو ۱۲ شب', { title: 'دارو', dueTime: '00:00' }],
+    ['نیمه‌شب بررسی سرور', { title: 'بررسی سرور', dueTime: '00:00' }],
+    // --- priority ---
+    ['فوری تماس با پزشک', { title: 'تماس با پزشک', priority: 'urgent' }],
+    ['تماس با پزشک فوری', { title: 'تماس با پزشک', priority: 'urgent' }],
+    ['مهم ارسال قرارداد', { title: 'ارسال قرارداد', priority: 'high' }],
+    ['!!! پرداخت اجاره', { title: 'پرداخت اجاره', priority: 'urgent' }],
+    ['!! ارسال گزارش', { title: 'ارسال گزارش', priority: 'high' }],
+    ['فوری و مهم تماس با مشتری', { priority: 'urgent' }],
+    // --- titles must not be rewritten ---
+    ['خرید ۲ کیلو سیب', { title: 'خرید ۲ کیلو سیب' }],
+    ['فردا خرید ۲ کیلو سیب', { title: 'خرید ۲ کیلو سیب', date: () => D(1) }],
+  ];
+
+  function runTests({ log = true } = {}) {
+    const results = tests.map(([input, want]) => {
+      const got = parse(input);
+      const diff = [];
+      for (const k of Object.keys(want)) {
+        if (k === 'titleNotEmpty') { if (!got.title) diff.push('title is empty'); continue; }
+        const expected = typeof want[k] === 'function' ? want[k]() : want[k];
+        if (got[k] !== expected) diff.push(`${k}: got ${JSON.stringify(got[k])} want ${JSON.stringify(expected)}`);
+      }
+      return { input, pass: !diff.length, diff, got };
+    });
+    const failed = results.filter(r => !r.pass);
+    if (log && typeof console !== 'undefined') {
+      console.log(`Capture: ${results.length - failed.length}/${results.length} passed`);
+      failed.forEach(f => console.log('  FAIL  ' + f.input + '\n         ' + f.diff.join('\n         ')));
+    }
+    return { total: results.length, passed: results.length - failed.length, failed, results };
+  }
+
+  return { parse, norm, titleWithout, tests, runTests };
 })();
 
 /* ---------------------------------------------------------------------------
@@ -4508,12 +4671,14 @@ const Today = (() => {
     function repaint() {
       chips.innerHTML = '';
       if (!parsed) return;
-      parsed.matched.filter(m => !ignored.has(m.kind)).forEach(m => {
+      parsed.matched.filter(m => !m.hidden && !ignored.has(m.type)).forEach(m => {
+        const label = m.type === 'date' ? Jalali.label(m.value)
+          : m.type === 'priority' ? I18n.t('p_' + m.value) : m.value;
         chips.appendChild(el('span.cap-chip', {}, [
-          el('span', { html: icon(CHIP[m.kind] || 'check') }),
-          el('span', { text: m.label || (m.kind === 'priority' ? I18n.t('p_' + m.value) : m.value) }),
+          el('span', { html: icon(CHIP[m.type] || 'check') }),
+          el('span', { text: label }),
           el('button', { type: 'button', html: icon('x'), 'aria-label': I18n.t('undo'),
-            onclick: () => { ignored.add(m.kind); repaint(); } }),
+            onclick: () => { ignored.add(m.type); repaint(); } }),
         ]));
       });
     }
@@ -4521,7 +4686,7 @@ const Today = (() => {
     const input = el('input', { placeholder: I18n.t('quickAddPh'), 'aria-label': I18n.t('addTask'),
       oninput: debounce((e) => {
         const v = e.target.value.trim();
-        parsed = v ? Capture.parse(v, { today: key }) : null;
+        parsed = v ? Capture.parse(v, { todayKey: key }) : null;
         ignored = new Set();
         repaint();
       }, 180),
@@ -4529,7 +4694,7 @@ const Today = (() => {
         if (e.key !== 'Enter' || !e.target.value.trim()) return;
         // Parse fresh: the debounced preview may not have caught the last keystroke.
         const raw = e.target.value.trim();
-        const now = Capture.parse(raw, { today: key });
+        const now = Capture.parse(raw, { todayKey: key });
         /* Snapshot before clearing. `use` closes over the VARIABLE, so reading
            it after `ignored` is reassigned below would see the fresh empty set
            and silently apply the very fields the user just dismissed. */
@@ -8851,7 +9016,7 @@ return { Bus, Prefs, I18n, Jalali, Theme, DB, UI, Router, Layout, Command, Views
   Capture, Tasks, TaskUI, Today, PlanView, ReportsView, Week, Month, Goals, GoalsView, Roadmap, Habits, HabitsView, Markdown, Notes, NotesView, Charts, Finance, FinanceView,
   Focus, FocusView, Health, HealthView, History, HistoryView, Stats, StatsView, Search,
   Reviews, ReviewsView, Notify, Lock, Recovery, Insights, AI, AssistantView,
-  el, $, $$, icon, uid, debounce, version: '1.3.0-rework-p5' };
+  el, $, $$, icon, uid, debounce, version: '1.3.1-rework-p5b' };
 })();
 
 window.App = App;
