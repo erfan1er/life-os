@@ -758,6 +758,17 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 .quickadd { display: flex; align-items: center; gap: var(--s-2); padding: 3px 4px; padding-inline-start: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); transition: border-color var(--dur-1) var(--ease); }
 .quickadd:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent); }
 .quickadd input { flex: 1; background: none; border: none; outline: none; font-size: var(--fs-md); padding: 7px 0; }
+/* What the parser understood, shown before you commit. Each chip is
+   dismissable, so a wrong guess costs one tap instead of an edit. */
+.cap-chips { display: flex; flex-wrap: wrap; gap: 5px; padding-inline-start: 12px; }
+.cap-chips:empty { display: none; }
+.cap-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 9px; border-radius: 999px;
+  background: var(--brand-soft); color: var(--brand); font-size: var(--fs-xs); font-weight: 600; }
+[dir="ltr"] .cap-chip { padding: 2px 9px 2px 4px; }
+.cap-chip svg.ic { width: 12px; height: 12px; }
+.cap-chip button { display: grid; place-items: center; width: 18px; height: 18px; border: none; border-radius: 50%;
+  background: none; color: inherit; opacity: .65; cursor: pointer; }
+.cap-chip button:hover { opacity: 1; background: color-mix(in srgb, var(--brand) 18%, transparent); }
 
 .task { display: flex; align-items: flex-start; gap: var(--s-2); padding: 8px 10px; padding-inline-start: 14px; border-radius: var(--r-md);
   background: var(--surface); border: 1px solid var(--border); position: relative;
@@ -1468,6 +1479,12 @@ function append(node, children) {
 }
 const uid = () => (Date.now().toString(36) + Math.random().toString(36).slice(2, 9));
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+/** Persian ۰-۹ and Arabic-Indic ٠-٩ digits → Latin. A Persian keyboard types
+    the former, so anything that parses numbers from user text needs this
+    first; three modules had grown their own copy. */
+const toLatinDigits = (s) => String(s == null ? '' : s)
+  .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+  .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
 const debounce = (fn, ms = 250) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 const deepClone = (o) => (typeof structuredClone === 'function' ? structuredClone(o) : JSON.parse(JSON.stringify(o)));
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -1712,6 +1729,193 @@ const Jalali = (() => {
 })();
 
 /* ---------------------------------------------------------------------------
+   3b. Capture — Persian natural language → task fields
+   ------------------------------------------------------------------------- */
+/* "فردا ۵ عصر دندانپزشکی" should become a task tomorrow at 17:00 titled
+   "دندانپزشکی", without opening a form. Pure logic, no DOM, no network — it
+   sits here so it can be driven straight from the console.
+
+   Design rule: everything it removes from the text is reported in `matched`,
+   and the UI shows one undoable chip per match. A parser that silently eats
+   part of your sentence is worse than no parser, because "فردا را برنامه‌ریزی
+   کن" is a legitimate title. */
+const Capture = (() => {
+  /* Normalisation is load-bearing. Persian text carries ZWNJ (U+200C) inside
+     ordinary words — پس‌فردا, نیمه‌شب — and Arabic keyboards produce ي/ك where
+     Persian expects ی/ک. Skip this and the most common words simply never
+     match, silently. */
+  /* Every replacement here is one character for one character, so the result
+     lines up index-for-index with the input. That alignment is what lets the
+     title be sliced out of the ORIGINAL text: normalisation is for MATCHING
+     only, and must never reach what gets saved — otherwise "خرید ۲ کیلو سیب"
+     is stored as "خرید 2 کیلو سیب" and the user's digits are quietly rewritten.
+     Note there is deliberately no \s+ collapsing: that would break alignment.
+
+     ZWNJ is deliberately NOT flattened to a space. It is an internal joiner
+     (پس‌فردا, سه‌شنبه), not a word boundary — flattening it makes the weekday
+     inside a compound like "سه‌شنبه‌بازار" look like a standalone date. It is
+     instead allowed *within* a pattern via flex(), while boundaries stay
+     whitespace-only. */
+  const norm = (s) => toLatinDigits(s).replace(/[يى]/g, 'ی').replace(/ك/g, 'ک');
+
+  /** A word whose internal spaces/ZWNJ match either spelling. */
+  const flex = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[\s\u200c]+/g, '[\\s\\u200c]*');
+
+  const REL = { 'امروز': 0, 'فردا': 1, 'پس فردا': 2, 'پسفردا': 2, 'دیروز': -1, 'پریروز': -2 };
+  const MERIDIEM = { 'صبح': 'am', 'ظهر': 'noon', 'بعدازظهر': 'pm', 'بعد از ظهر': 'pm', 'عصر': 'pm', 'شب': 'pm', 'نیمه شب': 'mid' };
+  const PRIORITY = [['فوری', 'urgent'], ['خیلی مهم', 'urgent'], ['مهم', 'high']];
+
+  const pad = (n) => String(n).padStart(2, '0');
+
+  /** Word-boundary matcher. \b is useless for Persian (it is defined over
+      [A-Za-z0-9_]), so bound on real whitespace / string edges instead —
+      notably NOT on ZWNJ, which joins words rather than separating them. */
+  const wordRe = (body, flags = '') => new RegExp('(^|\\s)(' + body + ')(?=\\s|$)', flags);
+  const word = (w, flags = '') => wordRe(flex(w), flags);
+
+  /** Original text minus the given [start,end) spans, whitespace tidied. */
+  function strip(original, spans) {
+    let s = '', at = 0;
+    for (const [a, b] of spans.slice().sort((x, y) => x[0] - y[0])) {
+      if (a > at) s += original.slice(at, a);
+      s += ' ';
+      at = Math.max(at, b);
+    }
+    return (s + original.slice(at)).replace(/\s+/g, ' ').trim();
+  }
+
+  /** Title as it would be if the listed field kinds were NOT extracted. Used
+      by the undo chips: dismissing "date" must restore the sentence exactly,
+      not append the matched fragment to the end of what's left. */
+  function titleWithout(original, matched, ignoredKinds) {
+    const spans = matched.filter(m => m.at && !ignoredKinds.has(m.kind)).map(m => m.at);
+    const t = strip(original, spans);
+    return t || String(original).trim();
+  }
+
+  function parse(input, { today = Jalali.todayKey() } = {}) {
+    const original = String(input == null ? '' : input);
+    // `text` is the aligned normalised copy used for matching. Consumed spans
+    // are blanked with spaces rather than spliced out, so every index stays
+    // valid against `original` and nothing can be matched twice.
+    let text = norm(original);
+    const cuts = [];
+    const matched = [];
+    const out = { title: '', date: null, dueTime: null, priority: null, matched };
+
+    const cut = (start, end, kind, value, label) => {
+      cuts.push([start, end]);
+      text = text.slice(0, start) + ' '.repeat(end - start) + text.slice(end);
+      // `at` lets the UI rebuild the title exactly when a chip is dismissed,
+      // rather than gluing the matched fragment back on the end.
+      matched.push({ kind, value, text: original.slice(start, end), label, at: [start, end] });
+    };
+    const eat = (re, kind, value, label) => {
+      const m = text.match(re);
+      if (!m) return false;
+      const lead = m[1] ? m[1].length : 0;          // the (^|\s) boundary group
+      cut(m.index + lead, m.index + m[0].length, kind, value, label);
+      return true;
+    };
+    const residual = () => strip(original, cuts);
+
+    /* --- time ------------------------------------------------------------
+       Most specific first: HH:MM, then "ساعت N", then "N <meridiem>". */
+    const hhmm = text.match(/(^|\s)(\d{1,2}):(\d{2})(?=\s|$)/);
+    if (hhmm) {
+      const h = +hhmm[2], m = +hhmm[3];
+      if (h <= 23 && m <= 59) eat(/(^|\s)(\d{1,2}:\d{2})(?=\s|$)/, 'time', pad(h) + ':' + pad(m), pad(h) + ':' + pad(m));
+    }
+    if (!out.dueTime && !matched.some(x => x.kind === 'time')) {
+      const at = text.match(/(^|\s)(ساعت\s+(\d{1,2}))(?=\s|$)/);
+      if (at && +at[3] <= 23) eat(/(^|\s)(ساعت\s+\d{1,2})(?=\s|$)/, 'time', pad(+at[3]) + ':00', pad(+at[3]) + ':00');
+    }
+    if (!matched.some(x => x.kind === 'time')) {
+      const mer = Object.keys(MERIDIEM).sort((a, b) => b.length - a.length).map(flex).join('|');
+      const m = text.match(new RegExp('(^|\\s)((\\d{1,2})\\s*(' + mer + '))(?=\\s|$)'));
+      if (m) {
+        let h = +m[3]; const kind = MERIDIEM[m[4]];
+        if (h <= 23) {
+          if (kind === 'pm' && h < 12) h += 12;
+          else if (kind === 'am' && h === 12) h = 0;
+          else if (kind === 'noon') h = 12;
+          else if (kind === 'mid') h = 0;
+          eat(new RegExp('(^|\\s)(\\d{1,2}\\s*(?:' + mer + '))(?=\\s|$)'), 'time', pad(h) + ':00', pad(h) + ':00');
+        }
+      }
+    }
+    // Bare "نیمه شب" / "ظهر" with no number.
+    if (!matched.some(x => x.kind === 'time')) {
+      if (word('نیمه شب').test(text)) eat(word('نیمه شب'), 'time', '00:00', '00:00');
+      else if (word('ظهر').test(text)) eat(word('ظهر'), 'time', '12:00', '12:00');
+    }
+    const t = matched.find(x => x.kind === 'time');
+    if (t) out.dueTime = t.value;
+
+    /* --- date ------------------------------------------------------------ */
+    // "N روز دیگر" / "N روز بعد"
+    const inDays = text.match(/(^|\s)((\d{1,3})\s*روز\s*(?:دیگر|بعد))(?=\s|$)/);
+    if (inDays) eat(/(^|\s)(\d{1,3}\s*روز\s*(?:دیگر|بعد))(?=\s|$)/, 'date',
+      Jalali.addDays(today, +inDays[3]), null);
+
+    if (!matched.some(x => x.kind === 'date')) {
+      // Longest first so "پس فردا" wins over "فردا".
+      for (const w of Object.keys(REL).sort((a, b) => b.length - a.length)) {
+        if (word(w).test(text)) { eat(word(w), 'date', Jalali.addDays(today, REL[w]), null); break; }
+      }
+    }
+
+    if (!matched.some(x => x.kind === 'date')) {
+      // Weekday names, optionally prefixed by "هفته بعد/آینده" → skip a week.
+      // wordRe, not word(): the body is already an alternation and flex()
+      // would escape the "|" into a literal.
+      const NEXT_WEEK = wordRe(['هفته بعد', 'هفته آینده', 'هفته دیگر'].map(flex).join('|'));
+      const names = Jalali.weekdays.fa;
+      const nextWeek = NEXT_WEEK.test(text);
+      const cur = Jalali.parseKey(today).wd;
+      let hit = false;
+      for (let i = 0; i < names.length; i++) {
+        if (!word(names[i]).test(text)) continue;
+        let delta = (i - cur + 7) % 7;
+        if (delta === 0) delta = 7;                 // "شنبه" on a Saturday means the next one
+        if (nextWeek) { delta += 7; eat(NEXT_WEEK, 'weekmod', null, null); }
+        eat(word(names[i]), 'date', Jalali.addDays(today, delta), null);
+        hit = true;
+        break;
+      }
+      // "هفته بعد" on its own is a week from today — it must not need a weekday
+      // to mean something.
+      if (!hit && nextWeek) eat(NEXT_WEEK, 'date', Jalali.addDays(today, 7), null);
+    }
+    // The week modifier is bookkeeping, not a field the user should see a chip for.
+    for (let i = matched.length - 1; i >= 0; i--) if (matched[i].kind === 'weekmod') matched.splice(i, 1);
+    const d = matched.find(x => x.kind === 'date');
+    if (d) { out.date = d.value; d.label = Jalali.label(d.value); }
+
+    /* --- priority --------------------------------------------------------- */
+    for (const [w, level] of PRIORITY) {
+      if (word(w).test(text)) { eat(word(w), 'priority', level, null); break; }
+    }
+    if (!matched.some(x => x.kind === 'priority')) {
+      const m = text.match(/(!{1,3})(?=\s|$)/);
+      if (m) cut(m.index, m.index + m[1].length, 'priority',
+        m[1].length >= 3 ? 'urgent' : m[1].length === 2 ? 'high' : 'medium', null);
+    }
+    const p = matched.find(x => x.kind === 'priority');
+    if (p) out.priority = p.value;
+
+    out.title = residual();
+    /* Never hand back an empty title: if the whole sentence was date/time
+       words, the words WERE the task ("فردا" as a reminder to look at
+       tomorrow). Keep the original and drop the extraction. */
+    if (!out.title) { out.title = original.trim(); out.date = null; out.dueTime = null; out.priority = null; matched.length = 0; }
+    return out;
+  }
+
+  return { parse, norm, titleWithout };
+})();
+
+/* ---------------------------------------------------------------------------
    4. I18n — Persian (default) + English, with dir switching
    ------------------------------------------------------------------------- */
 const I18n = (() => {
@@ -1726,7 +1930,8 @@ const I18n = (() => {
       topTitle: 'مهم‌ترین کارهای امروز', topHint: 'اگر فقط همین‌ها انجام شوند، روز خوبی بوده',
       topAuto: 'پیشنهاد اپ', topManual: 'انتخاب خودت', useSuggestions: 'برگرد به پیشنهاد اپ',
       topEmpty: 'کاری برای امروز ثبت نشده', pinTop: 'ببر به مهم‌ترین‌ها', unpinTop: 'بردار از مهم‌ترین‌ها',
-      moveUp: 'بالاتر', moveDown: 'پایین‌تر',
+      moveUp: 'بالاتر', moveDown: 'پایین‌تر', undo: 'برگردان',
+      quickAddHint: 'می‌توانی تاریخ و ساعت را داخل متن بنویسی: «فردا ۵ عصر دندانپزشکی»',
       sec_main: 'اصلی', sec_more: 'بخش‌های دیگر', sec_system: 'سیستم',
       search: 'جستجو', search_ph: 'جستجو در همه‌چیز…',
       greeting_morning: 'صبح بخیر', greeting_noon: 'ظهر بخیر', greeting_afternoon: 'عصر بخیر',
@@ -1997,7 +2202,8 @@ const I18n = (() => {
       topTitle: "Today's top 3", topHint: 'If only these get done, it was a good day',
       topAuto: 'Suggested', topManual: 'Your pick', useSuggestions: 'Back to suggestions',
       topEmpty: 'Nothing planned for today', pinTop: 'Move to top 3', unpinTop: 'Remove from top 3',
-      moveUp: 'Move up', moveDown: 'Move down',
+      moveUp: 'Move up', moveDown: 'Move down', undo: 'Undo',
+      quickAddHint: 'You can write the date and time inline: "tomorrow 5pm dentist"',
       sec_main: 'Main', sec_more: 'Other areas', sec_system: 'System',
       search: 'Search', search_ph: 'Search everything…',
       greeting_morning: 'Good morning', greeting_noon: 'Good noon', greeting_afternoon: 'Good afternoon',
@@ -4289,15 +4495,66 @@ const Today = (() => {
     if (!readonly) sec.appendChild(quickAdd(kind, key));
     return sec;
   }
+  /* Type "فردا ۵ عصر دندانپزشکی" and press Enter. Whatever Capture understood
+     is shown as chips BEFORE you commit, and each chip can be dismissed — so a
+     wrong guess costs one tap, and a title that genuinely contains "فردا" is
+     never silently mutilated. */
   function quickAdd(kind, key) {
     const dateFor = () => kind === 'weekly' ? Habits.weekStartKey(key) : key;
+    const chips = el('.cap-chips');
+    let parsed = null, ignored = new Set();
+
+    const CHIP = { date: 'today', time: 'clock', priority: 'bolt' };
+    function repaint() {
+      chips.innerHTML = '';
+      if (!parsed) return;
+      parsed.matched.filter(m => !ignored.has(m.kind)).forEach(m => {
+        chips.appendChild(el('span.cap-chip', {}, [
+          el('span', { html: icon(CHIP[m.kind] || 'check') }),
+          el('span', { text: m.label || (m.kind === 'priority' ? I18n.t('p_' + m.value) : m.value) }),
+          el('button', { type: 'button', html: icon('x'), 'aria-label': I18n.t('undo'),
+            onclick: () => { ignored.add(m.kind); repaint(); } }),
+        ]));
+      });
+    }
+
     const input = el('input', { placeholder: I18n.t('quickAddPh'), 'aria-label': I18n.t('addTask'),
-      onkeydown: async (e) => { if (e.key === 'Enter' && e.target.value.trim()) { const val = e.target.value.trim(); e.target.value = '';
-        await Tasks.create({ title: val, kind, date: dateFor(), repeat: { type: 'none', days: [] } }); refresh(); } } });
-    return el('.quickadd', {}, [
-      el('span', { html: icon('plus'), style: { color: 'var(--text-3)' } }), input,
-      el('button.btn.add.sm', { html: icon('plus') + '<span>' + I18n.t('addTask') + '</span>', title: I18n.t('newTask'),
-        onclick: () => TaskUI.openEditor(null, refresh, { kind, date: dateFor() }) }),
+      oninput: debounce((e) => {
+        const v = e.target.value.trim();
+        parsed = v ? Capture.parse(v, { today: key }) : null;
+        ignored = new Set();
+        repaint();
+      }, 180),
+      onkeydown: async (e) => {
+        if (e.key !== 'Enter' || !e.target.value.trim()) return;
+        // Parse fresh: the debounced preview may not have caught the last keystroke.
+        const raw = e.target.value.trim();
+        const now = Capture.parse(raw, { today: key });
+        /* Snapshot before clearing. `use` closes over the VARIABLE, so reading
+           it after `ignored` is reassigned below would see the fresh empty set
+           and silently apply the very fields the user just dismissed. */
+        const skip = new Set(ignored);
+        const use = (k) => !skip.has(k);
+        // Dismissing a chip puts those words back where they were.
+        const title = skip.size ? Capture.titleWithout(raw, now.matched, skip) : now.title;
+        e.target.value = ''; parsed = null; ignored = new Set(); repaint();
+        await Tasks.create({
+          title, kind,
+          date: (use('date') && now.date) ? (kind === 'weekly' ? Habits.weekStartKey(now.date) : now.date) : dateFor(),
+          dueTime: use('time') ? now.dueTime : null,
+          priority: (use('priority') && now.priority) ? now.priority : 'none',
+          repeat: { type: 'none', days: [] },
+        });
+        refresh();
+      } });
+
+    return el('.col.gap-1', {}, [
+      el('.quickadd', {}, [
+        el('span', { html: icon('plus'), style: { color: 'var(--text-3)' } }), input,
+        el('button.btn.add.sm', { html: icon('plus') + '<span>' + I18n.t('addTask') + '</span>', title: I18n.t('newTask'),
+          onclick: () => TaskUI.openEditor(null, refresh, { kind, date: dateFor() }) }),
+      ]),
+      chips,
     ]);
   }
 
@@ -5998,7 +6255,6 @@ const FinanceView = (() => {
       (type=number silently rejected Persian keyboards — THE cause of "empty"
       overview stats), with the amount spelled out in words underneath. */
   function moneyInput({ value = 0, onChange }) {
-    const toLatin = (s) => s.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
     const wrap = el('.money-in');
     const inp = el('input.input.money', { inputmode: 'numeric', dir: 'ltr', placeholder: '0' });
     const words = el('.money-words');
@@ -6008,7 +6264,7 @@ const FinanceView = (() => {
       words.textContent = n ? `${w} ${Finance.unitName()}` : '';
     };
     inp.addEventListener('input', () => {
-      const raw = toLatin(inp.value).replace(/\D/g, '').slice(0, 15);
+      const raw = toLatinDigits(inp.value).replace(/\D/g, '').slice(0, 15);
       const n = raw ? parseInt(raw, 10) : 0;
       render(n);
       try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch {}
@@ -6720,9 +6976,8 @@ const HealthView = (() => {
   /** Numeric input that accepts Persian/Arabic digits (type=number silently
       rejects them — same failure the finance amounts had). */
   function numIn({ value, placeholder, onChange }) {
-    const toLatin = (s) => s.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
     return el('input.input', { inputmode: 'decimal', dir: 'ltr', value: value ?? '', placeholder: placeholder || '',
-      oninput: debounce((e) => { const raw = toLatin(e.target.value).replace(/[^\d.]/g, ''); onChange(raw === '' ? null : +raw); }, 400) });
+      oninput: debounce((e) => { const raw = toLatinDigits(e.target.value).replace(/[^\d.]/g, ''); onChange(raw === '' ? null : +raw); }, 400) });
   }
 
   async function render() {
@@ -8593,10 +8848,10 @@ document.addEventListener('DOMContentLoaded', boot);
 
 /* Public surface (dev console / future modules) */
 return { Bus, Prefs, I18n, Jalali, Theme, DB, UI, Router, Layout, Command, Views, Settings, PWA,
-  Tasks, TaskUI, Today, PlanView, ReportsView, Week, Month, Goals, GoalsView, Roadmap, Habits, HabitsView, Markdown, Notes, NotesView, Charts, Finance, FinanceView,
+  Capture, Tasks, TaskUI, Today, PlanView, ReportsView, Week, Month, Goals, GoalsView, Roadmap, Habits, HabitsView, Markdown, Notes, NotesView, Charts, Finance, FinanceView,
   Focus, FocusView, Health, HealthView, History, HistoryView, Stats, StatsView, Search,
   Reviews, ReviewsView, Notify, Lock, Recovery, Insights, AI, AssistantView,
-  el, $, $$, icon, uid, debounce, version: '1.2.0-rework-p3' };
+  el, $, $$, icon, uid, debounce, version: '1.3.0-rework-p5' };
 })();
 
 window.App = App;
