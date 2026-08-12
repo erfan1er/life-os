@@ -9,7 +9,7 @@
 // cache whose name differs from this constant, so the bump is what actually
 // evicts the previous shell — leave it alone and an installed PWA can keep
 // serving the old app from cache long after a deploy.
-const CACHE = 'planer-shell-v4-icon-fix';
+const CACHE = 'planer-shell-v5-pwa-icons';
 
 self.addEventListener('install', () => { self.skipWaiting(); });
 
