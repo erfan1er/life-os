@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>Planer app icon</title>
+  <rect width="512" height="512" rx="112" fill="#33538A"/>
+  <path d="M155 130h154c27 0 49 22 49 49v154c0 27-22 49-49 49H203c-27 0-49-22-49-49V181c0-28 22-51 49-51h106" fill="none" stroke="#F7F4EF" stroke-linecap="round" stroke-linejoin="round" stroke-width="38"/>
+  <path d="M218 227h76M218 286h76M218 345h39" fill="none" stroke="#F7F4EF" stroke-linecap="round" stroke-width="30"/>
+  <circle cx="354" cy="158" r="44" fill="#7FA3DC" stroke="#33538A" stroke-width="18"/>
+  <path d="m334 158 14 14 28-31" fill="none" stroke="#191714" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+</svg>

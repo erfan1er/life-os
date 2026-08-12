@@ -1,4 +1,4 @@
-# Life OS — Design System
+# Planer — Design System
 
 Single source of truth for the visual language. Every token in `index.html`'s
 `:root` block comes from here; nothing in the app should carry a raw hex value

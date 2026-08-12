@@ -1,4 +1,4 @@
-// Life OS — offline shell cache. Kept as a real same-origin file because
+// Planer — offline shell cache. Kept as a real same-origin file because
 // browsers refuse to register a service worker from a blob: URL (the
 // single-file app itself is still just index.html; this file only exists for
 // the hosted/HTTPS deployment and is never touched when opened via file://).
@@ -9,7 +9,7 @@
 // cache whose name differs from this constant, so the bump is what actually
 // evicts the previous shell — leave it alone and an installed PWA can keep
 // serving the old app from cache long after a deploy.
-const CACHE = 'lifeos-shell-v2-rework';
+const CACHE = 'planer-shell-v3-brand';
 
 self.addEventListener('install', () => { self.skipWaiting(); });
 

@@ -16,20 +16,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <!-- Kept in sync with the resolved theme by Theme.apply() (dark: #16181F). -->
 <meta name="theme-color" content="#16181F" />
-<meta name="description" content="Personal Life OS — planner, habits, goals, finance, notes and more." />
+<meta name="description" content="Planer — planner, habits, goals, finance, notes and more." />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <!-- "default", not "black-translucent": translucent is the iOS equivalent of
      viewport-fit=cover (content draws under the status bar). -->
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="mobile-web-app-capable" content="yes" />
-<title>Life OS</title>
-<!-- Logomark: an "L+O" monogram in the app's own line-icon stroke style (round
-     caps/joins, matches svg.ic elsewhere) on the brand gradient — used for the
-     browser-tab favicon, the sidebar/splash badge, and the installed-PWA icon. -->
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237C5CFC'/%3E%3Cstop offset='1' stop-color='%23EC4899'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='22' fill='url(%23g)'/%3E%3Cpath d='M26 22 L26 78 L54 78' fill='none' stroke='%23fff' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='72' cy='50' r='19' fill='none' stroke='%23fff' stroke-width='10'/%3E%3C/svg%3E" />
+<title>Planer</title>
+<!-- One shared, mask-safe SVG mark for the tab, installed mobile app, and sidebar. -->
+<link rel="icon" type="image/svg+xml" href="app-icon.svg" />
+<link rel="apple-touch-icon" href="app-icon.svg" />
 <style>
 /* ============================================================================
-   LIFE OS — Phase 0 Foundation
+   PLANER — Phase 0 Foundation
    Single-file. HTML5 + CSS3 + Vanilla JS (ES2023). No build, no deps.
    ========================================================================== */
 
@@ -298,11 +297,9 @@ ul, ol { list-style: none; }
   transition: width var(--dur-2) var(--ease);
 }
 .sb-head { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-4) var(--s-4) var(--s-3); }
-.sb-logo { width: 32px; height: 32px; border-radius: 9px; flex: none;
-  background: var(--brand);
-  display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 15px;
-  box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 4px 12px color-mix(in srgb, var(--brand) 35%, transparent);
+.sb-logo { width: 32px; height: 32px; border-radius: 9px; flex: none; display: block;
   transition: transform var(--dur-2) var(--ease); }
+.sb-logo img { display: block; width: 100%; height: 100%; border-radius: inherit; }
 
 .sb-title { font-weight: 700; font-size: var(--fs-lg); white-space: nowrap; }
 .sb-sub { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; }
@@ -1614,9 +1611,7 @@ function icon(name, cls = '') {
     splash screen (hardcoded inline there, same coordinates), and the
     PWA/favicon data-URI generator below. `currentColor` picks up the white
     text color already set on the gradient badges. */
-const LOGO_SVG = '<svg viewBox="0 0 100 100" width="22" height="22" aria-hidden="true">' +
-  '<path d="M26 22 L26 78 L54 78" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>' +
-  '<circle cx="72" cy="50" r="19" fill="none" stroke="currentColor" stroke-width="10"/></svg>';
+const LOGO_SVG = '<img src="app-icon.svg" alt="" aria-hidden="true">';
 
 /* ---------------------------------------------------------------------------
    1. EventBus — decoupled pub/sub between modules
@@ -1640,12 +1635,16 @@ const Prefs = (() => {
     theme: 'system', lang: 'fa', accent: '#33538A', density: 'compact',
     lastPage: 'today', sidebarCollapsed: false, weekStart: 0, timeFormat: '24',
     dateSystem: 'jalali', currency: 'IRT', fontSize: 100, animations: true,
-    plannerName: 'Life OS', onboarded: false, browserNotif: false,
+    plannerName: 'Planer', onboarded: false, browserNotif: false,
     pomoWork: 25, pomoBreak: 5, pomoLong: 15, pomoLongEvery: 4, pomoAuto: false,
   };
   let state = load();
   function load() {
-    try { return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; }
+    try {
+      const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+      if (saved.plannerName === 'Life OS') saved.plannerName = 'Planer';
+      return { ...defaults, ...saved };
+    }
     catch { return { ...defaults }; }
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
@@ -2110,7 +2109,7 @@ const Capture = (() => {
 const I18n = (() => {
   const dict = {
     fa: {
-      appName: 'Life OS', tagline: 'سیستم‌عامل شخصی زندگی',
+      appName: 'Planer', tagline: 'برنامه‌ریز شخصی زندگی',
 nav_today: 'امروز', nav_week: 'هفته', nav_month: 'ماه',
       nav_goals: 'اهداف', nav_roadmap: 'نقشه راه', nav_habits: 'عادت‌ها', nav_notes: 'یادداشت‌ها',
       nav_finance: 'مالی', nav_history: 'تاریخچه', nav_stats: 'آمار', nav_focus: 'تمرکز',
@@ -2380,7 +2379,7 @@ pending: 'در انتظار', inProgress: 'در جریان', completed: 'انج�
       aiNoScope: 'بدون داده — فقط سؤال', aiAnswer: 'پاسخ', notEnoughData: 'هنوز داده کافی نیست',
     },
     en: {
-      appName: 'Life OS', tagline: 'Personal Life Operating System',
+      appName: 'Planer', tagline: 'Personal life planner',
 nav_today: 'Today', nav_week: 'Week', nav_month: 'Month',
       nav_goals: 'Goals', nav_roadmap: 'Roadmap', nav_habits: 'Habits', nav_notes: 'Notes',
       nav_finance: 'Finance', nav_history: 'History', nav_stats: 'Statistics', nav_focus: 'Focus',
@@ -3708,8 +3707,8 @@ const Settings = (() => {
 
     /* General */
     const nameInput = el('input.input', { value: p.plannerName, style: { maxWidth: '220px' },
-      oninput: debounce((e) => { Prefs.set('plannerName', e.target.value || 'Life OS');
-        const t = $('.sb-title'); if (t) t.textContent = e.target.value || 'Life OS'; }, 300) });
+      oninput: debounce((e) => { Prefs.set('plannerName', e.target.value || 'Planer');
+        const t = $('.sb-title'); if (t) t.textContent = e.target.value || 'Planer'; }, 300) });
     const weekSel = el('select.select', { style: { maxWidth: '200px' }, onchange: (e) => Prefs.set('weekStart', +e.target.value) },
       Jalali.weekdaysLong[I18n.get()].map((w, i) => el('option', { value: i, text: w, selected: p.weekStart === i })));
     const timeSel = el('select.select', { style: { maxWidth: '160px' }, onchange: (e) => Prefs.set('timeFormat', e.target.value) },
@@ -3846,7 +3845,7 @@ const Settings = (() => {
       }), I18n.t('browserNotifDesc')),
       el('.divider'),
       el('.row.between.gap-4', {}, [
-        el('.col', {}, [ el('.label', { text: I18n.t('version') }), el('.hint', { text: `Life OS · ${I18n.t('phase')} 0 · schema v${DB.VERSION}` }) ]),
+        el('.col', {}, [ el('.label', { text: I18n.t('version') }), el('.hint', { text: `Planer · ${I18n.t('phase')} 0 · schema v${DB.VERSION}` }) ]),
         el('.chip', {}, [ el('span', { html: icon('layers') }), el('span', { text: '0.1.0' }) ]),
       ]),
     ]));
@@ -4051,25 +4050,10 @@ const Settings = (() => {
    ------------------------------------------------------------------------- */
 const PWA = (() => {
   let deferredPrompt = null;
-  function iconDataURL(size, maskable) {
-    // Same L+O monogram as the sidebar/splash badge (see LOGO_SVG), just laid
-    // out full-bleed on a 0–100 box so it scales cleanly to any icon size.
-    // Maskable icons need extra safe-area padding (~20% each side) so Android
-    // doesn't crop the glyph when it applies its own mask shape.
-    const glyph = maskable
-      ? '<path d="M34 33 L34 67 L52 67" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="63" cy="50" r="13" fill="none" stroke="#fff" stroke-width="7"/>'
-      : '<path d="M26 22 L26 78 L54 78" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72" cy="50" r="19" fill="none" stroke="#fff" stroke-width="10"/>';
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 100 100">
-      <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7C5CFC"/><stop offset="1" stop-color="#EC4899"/></linearGradient></defs>
-      <rect width="100" height="100" rx="${maskable ? 0 : 22}" fill="url(#g)"/>
-      ${glyph}
-    </svg>`;
-    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
-  }
   function injectManifest() {
     const manifest = {
-      name: Prefs.get('plannerName') || 'Life OS', short_name: 'Life OS',
-      description: 'Personal Life Operating System', start_url: '.', scope: '.',
+      name: Prefs.get('plannerName') || 'Planer', short_name: 'Planer',
+      description: 'Personal life planner', start_url: '.', scope: '.',
       display: 'standalone', orientation: 'portrait-primary',
       // theme_color paints the installed shell's system bars (they are opaque
       // now that the viewport is not fit=cover) — match the topbar, not the
@@ -4077,9 +4061,7 @@ const PWA = (() => {
       background_color: '#0E0F14', theme_color: '#16181F',
       lang: I18n.get(), dir: I18n.dir(),
       icons: [
-        { src: iconDataURL(192), sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
-        { src: iconDataURL(512), sizes: '512x512', type: 'image/svg+xml', purpose: 'any' },
-        { src: iconDataURL(512, true), sizes: '512x512', type: 'image/svg+xml', purpose: 'maskable' },
+        { src: 'app-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
       ],
     };
     const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
@@ -4087,7 +4069,8 @@ const PWA = (() => {
     let link = document.querySelector('link[rel="manifest"]');
     if (!link) { link = el('link', { rel: 'manifest' }); document.head.appendChild(link); }
     link.href = url;
-    let apple = el('link', { rel: 'apple-touch-icon', href: iconDataURL(180) }); document.head.appendChild(apple);
+    let apple = document.querySelector('link[rel="apple-touch-icon"]');
+    if (!apple) { apple = el('link', { rel: 'apple-touch-icon', href: 'app-icon.svg' }); document.head.appendChild(apple); }
   }
   /* Service worker: caches the shell for offline use, served from a real
      sw.js file sitting next to index.html. A Blob-URL registration was tried
