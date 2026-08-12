@@ -259,11 +259,11 @@ ul, ol { list-style: none; }
 #splash.hide { opacity: 0; pointer-events: none; }
 .splash-mark {
   width: 76px; height: 76px; border-radius: 22px;
-  background: var(--brand);
-  display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 34px;
+  overflow: hidden;
   box-shadow: var(--shadow-lg);
   animation: pop .6s var(--ease) both;
 }
+.splash-mark img { display: block; width: 100%; height: 100%; }
 .splash-spin { margin-top: 22px; width: 26px; height: 26px; border-radius: 50%;
   border: 3px solid var(--border); border-top-color: var(--brand); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -1433,10 +1433,7 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
 <div id="splash">
   <div class="col" style="align-items:center">
     <div class="splash-mark">
-      <svg viewBox="0 0 100 100" width="36" height="36" aria-hidden="true">
-        <path d="M26 22 L26 78 L54 78" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="72" cy="50" r="19" fill="none" stroke="currentColor" stroke-width="10"/>
-      </svg>
+      <img src="app-icon.svg" alt="" aria-hidden="true" />
     </div>
     <div class="splash-spin"></div>
   </div>
@@ -1605,12 +1602,8 @@ function icon(name, cls = '') {
   return `<svg class="ic ${cls}" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">${p}</svg>`;
 }
 
-/** App logomark — an "L+O" monogram drawn in the same round-stroke style as
-    every other icon (svg.ic), so it reads as part of the app's own visual
-    language instead of generic bold text. Reused for the sidebar badge, the
-    splash screen (hardcoded inline there, same coordinates), and the
-    PWA/favicon data-URI generator below. `currentColor` picks up the white
-    text color already set on the gradient badges. */
+/** The same standalone SVG powers the sidebar, splash screen, browser tab,
+    and installed mobile app, so every surface uses one source of truth. */
 const LOGO_SVG = '<img src="app-icon.svg" alt="" aria-hidden="true">';
 
 /* ---------------------------------------------------------------------------
