@@ -3345,8 +3345,12 @@ const Cloud = (() => {
     await queue('preferences', { values: publicPrefs(), updatedAt: Date.now(), version: 1 }, 'main', { quiet: true });
     await DB.kvSet(MIGRATION_PREFIX + session.user.id, { done: true, at: Date.now(), recordCount: summary.total });
     setState({ phase: 'pending', error: null, migrationNeeded: false });
-    await syncNow({ force: true });
-    return summary;
+    const synced = await syncNow({ force: true });
+    /* The outbox remains safely stored in IndexedDB if the request fails. Do
+       not report that the data transfer completed until the first cloud sync
+       actually succeeds; this avoids a misleading success toast. */
+    if (!synced) throw new Error('sync');
+    return { ...summary, synced: true };
   }
   async function beginForSession() {
     await refreshSession();
@@ -4409,8 +4413,9 @@ const Settings = (() => {
     } else {
       const accountName = el('input.input', { value: cloud.profile?.display_name || '', maxlength: 80, 'aria-label': 'نام نمایشی', style: { maxWidth: '220px' },
         oninput: debounce(async (e) => { try { await Cloud.updateDisplayName(e.target.value); } catch { UI.toast('error', 'نام حساب ذخیره نشد.'); } }, 500) });
+      const legacySummary = cloud.migrationNeeded ? await Cloud.localCounts() : null;
       const syncHint = cloud.migrationNeeded
-        ? 'تغییرات جدید از این لحظه خودکار همگام می‌شوند؛ داده‌های قدیمی فقط با انتخاب شما منتقل می‌شوند.'
+        ? `${I18n.num(legacySummary.total)} رکورد قدیمی هنوز محلی است. تغییرات جدید خودکار همگام می‌شوند؛ برای انتقال موارد قدیمی، دکمهٔ زیر را بزنید.`
         : `آخرین همگام‌سازی: ${Cloud.relativeTime(cloud.lastSync)}`;
       cloudRows.push(
         rowItem('حساب', el('.col.gap-1', {}, [el('.small.account-email', { text: cloud.session.user?.email || '' }),
@@ -4421,18 +4426,18 @@ const Settings = (() => {
         rowItem('وضعیت همگام‌سازی', statusChip, syncHint),
       );
       const actions = [
-        el('button.btn.outline', { text: 'همگام‌سازی اکنون',
+        el('button.btn.outline', { text: cloud.migrationNeeded ? 'همگام‌سازی تغییرات جدید' : 'همگام‌سازی اکنون',
           onclick: async () => { const ok = await Cloud.syncNow(); UI.toast(ok ? 'success' : 'error', ok ? 'همگام‌سازی انجام شد.' : 'همگام‌سازی انجام نشد؛ داده‌های محلی محفوظ هستند.'); Router.render(); } }),
       ];
       if (cloud.migrationNeeded) {
-        const summary = await Cloud.localCounts();
-        actions.push(el('button.btn.primary', { text: 'انتقال داده‌های قدیمی این دستگاه به حساب', onclick: async () => {
+        const summary = legacySummary;
+        actions.push(el('button.btn.primary', { text: `انتقال و همگام‌سازی ${I18n.num(summary.total)} رکورد قدیمی`, onclick: async () => {
           const ok = await UI.confirm({ title: 'انتقال داده‌های محلی', confirmLabel: 'شروع انتقال',
             message: `${I18n.num(summary.total)} رکورد از این دستگاه به حساب شما منتقل می‌شود. ابتدا یک نسخهٔ پشتیبان محلی ساخته می‌شود. انتقال تکراری رکورد جدیدی با شناسهٔ یکسان نمی‌سازد.` });
           if (!ok) return;
           try {
             const result = await Cloud.migrateDeviceData();
-            UI.toast('success', result.already ? 'این دستگاه قبلاً منتقل شده است.' : `${I18n.num(result.total)} رکورد برای همگام‌سازی آماده شد.`);
+            UI.toast('success', result.already ? 'این دستگاه قبلاً منتقل شده است.' : `${I18n.num(result.total)} رکورد با حساب شما همگام شد.`);
             Router.render();
           } catch { UI.toast('error', 'انتقال انجام نشد؛ داده‌های محلی تغییر نکردند.'); }
         } }));
