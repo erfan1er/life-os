@@ -529,6 +529,9 @@ ul, ol { list-style: none; }
 .auth-form { max-width: 420px; margin-inline: auto; }
 .auth-form .btn { min-height: 44px; }
 .invite-code { direction: ltr; text-align: start; font-family: var(--font-mono); letter-spacing: .03em; }
+.invite-row { padding: 10px 12px; background: var(--surface-2); border-radius: var(--r-md); }
+.invite-actions { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.invite-new { padding: var(--s-3); background: var(--brand-soft); border: 1px solid color-mix(in srgb, var(--brand) 25%, var(--border)); border-radius: var(--r-md); }
 
 /* Jalali date picker */
 .jdp-input { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); cursor: pointer; text-align: start; }
@@ -1439,6 +1442,9 @@ svg.ic { stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke
   .task-actions .tb-btn svg { width: 18px; height: 18px; }
   .jdp-day, .tp-col button, .seg button, .pick button, .btn.sm, .btn.add.sm { min-height: 36px; }
   .modal-foot .btn { min-height: 44px; }
+  .invite-row { align-items: stretch; }
+  .invite-actions { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .invite-actions .btn { min-height: 44px; white-space: normal; }
 }
 </style>
 </head>
@@ -3138,7 +3144,7 @@ const Cloud = (() => {
   const LOCAL_COLLECTIONS = Object.keys(DB.STORES).filter(s =>
     !['kv', QUEUE_STORE].includes(s));
   const DEVICE_PREFS = new Set(['lastPage', 'sidebarCollapsed', 'onboarded', 'browserNotif']);
-  let session = null, profile = null, state = { phase: 'local', lastSync: null, error: null };
+  let session = null, profile = null, state = { phase: 'local', lastSync: null, error: null, migrationNeeded: false };
   let initialized = false, syncing = false, pullTimer = null, applyingRemotePrefs = false;
 
   const text = (fa, en) => I18n.get() === 'fa' ? fa : en;
@@ -3212,7 +3218,7 @@ const Cloud = (() => {
   }
   function queueId(collection, id) { return `${collection}:${id}`; }
   async function queue(collection, payload, id, { quiet = false } = {}) {
-    if (!session?.user || !(await isMigrated())) return;
+    if (!session?.user || !(await migrationState())) return;
     const recordId = queueId(collection, id);
     const row = {
       id: recordId, userId: session.user.id, collection, payload: structuredClone(payload), recordId,
@@ -3224,14 +3230,22 @@ const Cloud = (() => {
     if (!quiet) { setState({ phase: navigator.onLine ? 'pending' : 'offline', error: null }); schedule(); }
   }
   async function queueLocalChange(evt) {
-    if (!LOCAL_COLLECTIONS.includes(evt.store) || !session?.user || !(await isMigrated())) return;
+    if (!LOCAL_COLLECTIONS.includes(evt.store) || !session?.user) return;
+    const migration = await migrationState();
+    if (!migration) return;
+    /* Pre-login rows remain local until transferred explicitly. A new edit is
+       immediately eligible for automatic account sync. */
+    const shouldQueue = (row) => !!migration.done ||
+      Number(row?.updatedAt || 0) >= Number(migration.automaticFrom || Infinity);
     if (evt.op === 'bulk') {
-      for (const row of await DB.all(evt.store, { includeDeleted: true })) await queue(evt.store, row, row.id, { quiet: true });
+      for (const row of await DB.all(evt.store, { includeDeleted: true })) {
+        if (shouldQueue(row)) await queue(evt.store, row, row.id, { quiet: true });
+      }
       setState({ phase: navigator.onLine ? 'pending' : 'offline', error: null }); schedule();
       return;
     }
     const row = evt.id ? await DB.get(evt.store, evt.id) : null;
-    if (row) await queue(evt.store, row, row.id);
+    if (row && shouldQueue(row)) await queue(evt.store, row, row.id);
   }
   async function migrationState() {
     if (!session?.user?.id) return null;
@@ -3304,7 +3318,7 @@ const Cloud = (() => {
     if (!session?.user) { setState({ phase: 'local' }); return false; }
     if (!navigator.onLine) { setState({ phase: 'offline' }); return false; }
     if (syncing) return false;
-    if (!(await isMigrated()) && !force) { setState({ phase: 'needsMigration' }); return false; }
+    if (!(await migrationState()) && !force) return false;
     syncing = true; setState({ phase: 'syncing', error: null });
     try {
       await refreshSession();
@@ -3330,7 +3344,7 @@ const Cloud = (() => {
     }
     await queue('preferences', { values: publicPrefs(), updatedAt: Date.now(), version: 1 }, 'main', { quiet: true });
     await DB.kvSet(MIGRATION_PREFIX + session.user.id, { done: true, at: Date.now(), recordCount: summary.total });
-    setState({ phase: 'pending', error: null });
+    setState({ phase: 'pending', error: null, migrationNeeded: false });
     await syncNow({ force: true });
     return summary;
   }
@@ -3341,14 +3355,26 @@ const Cloud = (() => {
     const summary = await localCounts();
     if (saved?.done) {
       const last = await DB.kvGet('cloud.lastSync.' + session.user.id);
-      setState({ phase: navigator.onLine ? 'pending' : 'offline', lastSync: last || null, error: null });
+      setState({ phase: navigator.onLine ? 'pending' : 'offline', lastSync: last || null, error: null, migrationNeeded: false });
+      schedule();
+    } else if (saved?.automaticFrom) {
+      /* Automatic new-change sync was enabled on a prior session; retain the
+         original boundary so pre-login history still requires consent. */
+      const last = await DB.kvGet('cloud.lastSync.' + session.user.id);
+      setState({ phase: navigator.onLine ? 'pending' : 'offline', lastSync: last || null, error: null, migrationNeeded: true });
       schedule();
     } else if (summary.total === 0) {
       /* New device: safe to hydrate immediately, then future edits are synced. */
       await DB.kvSet(MIGRATION_PREFIX + session.user.id, { done: true, at: Date.now(), emptyDevice: true });
-      setState({ phase: navigator.onLine ? 'pending' : 'offline', error: null });
+      setState({ phase: navigator.onLine ? 'pending' : 'offline', error: null, migrationNeeded: false });
       schedule();
-    } else setState({ phase: 'needsMigration', error: null });
+    } else {
+      /* Do not upload historical device data without consent. This marker
+         switches automatic sync on for every record created or edited now. */
+      await DB.kvSet(MIGRATION_PREFIX + session.user.id, { done: false, automaticFrom: Date.now() });
+      setState({ phase: navigator.onLine ? 'pending' : 'offline', error: null, migrationNeeded: true });
+      schedule();
+    }
     emit();
   }
   async function signIn(email, password) {
@@ -3367,7 +3393,7 @@ const Cloud = (() => {
   }
   async function signOut() {
     try { if (session?.access_token) await request('/auth/v1/logout', { method: 'POST' }); } catch {}
-    saveSession(null); profile = null; setState({ phase: 'local', lastSync: null, error: null });
+    saveSession(null); profile = null; setState({ phase: 'local', lastSync: null, error: null, migrationNeeded: false });
   }
   async function recoverPassword(email) {
     await request('/auth/v1/recover', { method: 'POST', token: config().anonKey,
@@ -3389,6 +3415,7 @@ const Cloud = (() => {
     return rpc('admin_create_invite', { p_code: code, p_max_uses: maxUses, p_expires_at: expiresAt || null });
   }
   async function adminToggleInvite(id, enabled) { return rpc('admin_set_invite_enabled', { p_invite_id: id, p_enabled: enabled }); }
+  async function adminDeleteInvite(id) { return rpc('admin_delete_invite', { p_invite_id: id }); }
   function generateInvite() {
     const bytes = crypto.getRandomValues(new Uint8Array(8));
     return 'PLN-' + [...bytes].map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
@@ -3411,6 +3438,20 @@ const Cloud = (() => {
     return new Date(at).toLocaleString(I18n.get() === 'fa' ? 'fa-IR' : 'en-US');
   }
   function field(label, input, hint) { return el('.field', {}, [el('.label', { text: label }), input, hint ? el('.hint', { text: hint }) : null]); }
+  async function copyText(value) {
+    if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(value); return; }
+    const area = el('textarea', { value, readonly: true, style: { position: 'fixed', opacity: '0', pointerEvents: 'none' } });
+    document.body.appendChild(area); area.select();
+    const copied = document.execCommand('copy'); area.remove();
+    if (!copied) throw new Error('copy failed');
+  }
+  function inviteExpiryISO(key) {
+    if (!key) return null;
+    const { jy, jm, jd } = Jalali.parseKey(key);
+    const end = Jalali.toDate(jy, jm, jd);
+    end.setHours(23, 59, 59, 999);
+    return end.toISOString();
+  }
   function openAuthModal(mode = 'login') {
     if (!configured()) { UI.toast('error', safeError('config')); return; }
     const body = el('.auth-form.col.gap-3');
@@ -3473,7 +3514,9 @@ const Cloud = (() => {
     const list = el('.col.gap-2');
     const code = el('input.input.invite-code', { value: generateInvite(), maxlength: 64, 'aria-label': text('کد دعوت', 'Invite code') });
     const maxUses = el('input.input', { type: 'number', min: 1, max: 100000, value: 1, inputmode: 'numeric', 'aria-label': text('سقف استفاده', 'Use limit') });
-    const expires = el('input.input', { type: 'datetime-local', 'aria-label': text('انقضا', 'Expiry') });
+    let expiryKey = null, latestCreated = null;
+    const expires = JalaliPicker.input({ value: null, allowClear: true, placeholder: text('انتخاب تاریخ', 'Select date'),
+      onChange: (key) => { expiryKey = key; } });
     const message = el('.hint', { role: 'status', 'aria-live': 'polite' });
     async function refresh() {
       list.innerHTML = ''; message.textContent = text('در حال دریافت…', 'Loading…');
@@ -3482,11 +3525,28 @@ const Cloud = (() => {
         if (!rows?.length) list.appendChild(el('.hint', { text: text('هنوز کدی ساخته نشده است.', 'No invite codes yet.') }));
         for (const row of rows || []) {
           const exhausted = Number(row.used_count) >= Number(row.max_uses);
-          list.appendChild(el('.row.between.wrap.gap-2', { style: { padding: '10px 12px', background: 'var(--surface-2)', borderRadius: 'var(--r-md)' } }, [
-            el('.col.grow', {}, [el('.small.invite-code', { text: row.code_hint || '••••' }),
-              el('.hint', { text: `${text('استفاده', 'Uses')}: ${row.used_count}/${row.max_uses} · ${row.expires_at ? new Date(row.expires_at).toLocaleString(I18n.get() === 'fa' ? 'fa-IR' : 'en-US') : text('بدون انقضا', 'No expiry')}` })]),
-            el('button.btn.sm' + (row.enabled && !exhausted ? '.outline' : ''), { text: row.enabled ? text('غیرفعال‌کردن', 'Disable') : text('فعال‌کردن', 'Enable'),
-              onclick: async () => { try { await adminToggleInvite(row.id, !row.enabled); refresh(); } catch { UI.toast('error', safeError('generic')); } } }),
+          const raw = latestCreated?.id === row.id ? latestCreated.code : null;
+          const expiry = row.expires_at ? `${text('تا پایان ', 'Until end of ')}${Jalali.label(Jalali.keyFromDate(new Date(row.expires_at)))}` : text('بدون انقضا', 'No expiry');
+          const actions = el('.invite-actions');
+          if (raw) actions.appendChild(el('button.btn.sm.outline', { html: icon('copy') + `<span>${text('کپی کد', 'Copy code')}</span>`,
+            onclick: async () => { try { await copyText(raw); UI.toast('success', text('کد دعوت کپی شد.', 'Invite code copied.')); } catch { UI.toast('error', text('کپی کد انجام نشد.', 'Could not copy the code.')); } } }));
+          actions.appendChild(el('button.btn.sm' + (row.enabled && !exhausted ? '.outline' : ''), { text: row.enabled ? text('غیرفعال‌کردن', 'Disable') : text('فعال‌کردن', 'Enable'),
+            onclick: async () => { try { await adminToggleInvite(row.id, !row.enabled); refresh(); } catch { UI.toast('error', safeError('generic')); } } }));
+          if (Number(row.used_count) === 0) actions.appendChild(el('button.btn.sm.danger', { html: icon('trash') + `<span>${text('حذف', 'Delete')}</span>`,
+            onclick: async () => {
+              const ok = await UI.confirm({ title: text('حذف دعوت‌نامه', 'Delete invite'), danger: true, confirmLabel: text('حذف', 'Delete'),
+                message: text('این کد استفاده نشده و برای همیشه حذف می‌شود.', 'This unused invite code will be permanently deleted.') });
+              if (!ok) return;
+              try { await adminDeleteInvite(row.id); if (latestCreated?.id === row.id) latestCreated = null; UI.toast('success', text('دعوت‌نامه حذف شد.', 'Invite deleted.')); refresh(); }
+              catch { UI.toast('error', text('فقط کدهای استفاده‌نشده قابل حذف هستند.', 'Only unused invite codes can be deleted.')); }
+            } }));
+          list.appendChild(el('.invite-row.row.between.wrap.gap-2', {}, [
+            el('.col.grow', {}, [
+              raw ? el('.invite-new', {}, [el('.small.invite-code', { text: raw }), el('.hint', { text: text('کد کامل فقط تا بسته‌شدن این پنل نمایش داده می‌شود.', 'The full code is shown only while this panel stays open.') })]) :
+                el('.small.invite-code', { text: row.code_hint || '••••' }),
+              el('.hint', { text: `${text('استفاده', 'Uses')}: ${row.used_count}/${row.max_uses} · ${expiry}` }),
+            ]),
+            actions,
           ]));
         }
       } catch { message.textContent = safeError('generic'); }
@@ -3496,13 +3556,16 @@ const Cloud = (() => {
       const n = Number(maxUses.value);
       if (!/^[A-Za-z0-9_-]{6,64}$/.test(code.value.trim()) || !Number.isInteger(n) || n < 1) { message.textContent = text('کد و سقف استفاده معتبر وارد کنید.', 'Enter a valid code and use limit.'); return; }
       create.disabled = true;
-      try { await adminCreateInvite(code.value.trim(), n, expires.value ? new Date(expires.value).toISOString() : null);
-        message.textContent = text(`کد ${code.value.trim()} ساخته شد؛ آن را اکنون به‌صورت امن ارسال کنید.`, `Code ${code.value.trim()} was created; share it securely now.`);
-        code.value = generateInvite(); maxUses.value = '1'; expires.value = ''; await refresh();
+      const rawCode = code.value.trim();
+      try {
+        const created = await adminCreateInvite(rawCode, n, inviteExpiryISO(expiryKey));
+        latestCreated = { id: created?.[0]?.id, code: rawCode };
+        message.textContent = text('کد ساخته شد؛ با دکمهٔ کپی کنار آن، آن را امن ارسال کنید.', 'Code created; use its Copy button to share it securely.');
+        code.value = generateInvite(); maxUses.value = '1'; expiryKey = null; expires.value = ''; await refresh();
       } catch { message.textContent = safeError('generic'); } finally { create.disabled = false; }
     };
-    body.append(el('.hint', { text: text('کد خام فقط همین‌جا هنگام ساخت دیده می‌شود و در دیتابیس به‌صورت هش نگهداری می‌شود.', 'The raw code is shown only at creation time and is stored as a hash.') }),
-      field(text('کد', 'Code'), code), el('.row.gap-2.wrap', {}, [el('.grow', {}, [field(text('سقف استفاده', 'Use limit'), maxUses)]), el('.grow', {}, [field(text('انقضا (اختیاری)', 'Expiry (optional)'), expires)])]), create, message,
+    body.append(el('.hint', { text: text('کدهای قبلی قابل بازیابی نیستند، چون در دیتابیس فقط هش آن‌ها نگهداری می‌شود. کد تازه را تا بسته‌شدن این پنل می‌توانید کپی کنید.', 'Older raw codes cannot be recovered because only their hashes are stored. A newly created code can be copied until this panel is closed.') }),
+      field(text('کد', 'Code'), code), el('.row.gap-2.wrap', {}, [el('.grow', {}, [field(text('سقف استفاده', 'Use limit'), maxUses)]), el('.grow', {}, [field(text('انقضا (اختیاری؛ تا پایان روز)', 'Expiry (optional; end of day)'), expires)])]), create, message,
       el('.label', { text: text('کدهای موجود', 'Existing codes') }), list);
     UI.modal({ title: text('مدیریت دعوت‌نامه‌ها', 'Invite management'), body, width: '620px' });
     refresh();
@@ -4211,8 +4274,8 @@ const Settings = (() => {
     } else {
       const accountName = el('input.input', { value: cloud.profile?.display_name || '', maxlength: 80, 'aria-label': 'نام نمایشی', style: { maxWidth: '220px' },
         oninput: debounce(async (e) => { try { await Cloud.updateDisplayName(e.target.value); } catch { UI.toast('error', 'نام حساب ذخیره نشد.'); } }, 500) });
-      const syncHint = cloud.phase === 'needsMigration'
-        ? 'داده‌های فعلی این دستگاه هنوز به حساب منتقل نشده‌اند.'
+      const syncHint = cloud.migrationNeeded
+        ? 'تغییرات جدید از این لحظه خودکار همگام می‌شوند؛ داده‌های قدیمی فقط با انتخاب شما منتقل می‌شوند.'
         : `آخرین همگام‌سازی: ${Cloud.relativeTime(cloud.lastSync)}`;
       cloudRows.push(
         rowItem('حساب', el('.col.gap-1', {}, [el('.small.account-email', { text: cloud.session.user?.email || '' }),
@@ -4223,12 +4286,12 @@ const Settings = (() => {
         rowItem('وضعیت همگام‌سازی', statusChip, syncHint),
       );
       const actions = [
-        el('button.btn.outline', { text: 'همگام‌سازی اکنون', disabled: cloud.phase === 'needsMigration',
+        el('button.btn.outline', { text: 'همگام‌سازی اکنون',
           onclick: async () => { const ok = await Cloud.syncNow(); UI.toast(ok ? 'success' : 'error', ok ? 'همگام‌سازی انجام شد.' : 'همگام‌سازی انجام نشد؛ داده‌های محلی محفوظ هستند.'); Router.render(); } }),
       ];
-      if (cloud.phase === 'needsMigration') {
+      if (cloud.migrationNeeded) {
         const summary = await Cloud.localCounts();
-        actions.push(el('button.btn.primary', { text: 'انتقال داده‌های این دستگاه به حساب', onclick: async () => {
+        actions.push(el('button.btn.primary', { text: 'انتقال داده‌های قدیمی این دستگاه به حساب', onclick: async () => {
           const ok = await UI.confirm({ title: 'انتقال داده‌های محلی', confirmLabel: 'شروع انتقال',
             message: `${I18n.num(summary.total)} رکورد از این دستگاه به حساب شما منتقل می‌شود. ابتدا یک نسخهٔ پشتیبان محلی ساخته می‌شود. انتقال تکراری رکورد جدیدی با شناسهٔ یکسان نمی‌سازد.` });
           if (!ok) return;
