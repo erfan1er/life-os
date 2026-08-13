@@ -95,6 +95,10 @@ Realtime عمداً در این نسخه فعال نشده است: pull هنگا
 - session ورود در localStorage مرورگر نگهداری می‌شود، مانند client استاندارد Supabase. از تزریق اسکریپت/XSS با پرهیز از اسکریپت‌های شخص ثالث و بازبینی هر تغییر HTML محافظت کنید.
 - data at rest در Supabase تحت حفاظت پروژهٔ Supabase است، اما payloadهای `JSONB` این نسخه end-to-end encrypted نیستند. برای E2EE به مدیریت کلید و طراحی بازیابی مستقل نیاز است.
 
+## اتصال Apple Reminders
+
+Planer روی iPhone/iPad می‌تواند کارهای بازِ تاریخ‌دار را با یک دکمه به Shortcut شخصی شما بفرستد تا در Apple Reminders ساخته شوند. راه‌اندازی Shortcut فقط یک‌بار لازم است؛ راهنمای دقیق در [ios-reminders-shortcut.md](docs/ios-reminders-shortcut.md) قرار دارد. این انتقال یک‌طرفه است و برای این قابلیت داده‌ای به سرور جدیدی ارسال نمی‌شود.
+
 ## بررسی پیش از انتشار
 
 ```bash

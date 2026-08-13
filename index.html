@@ -4158,6 +4158,141 @@ const Views = (() => {
 })();
 
 /* ---------------------------------------------------------------------------
+   12b. Apple Reminders bridge — iPhone/iPad only
+
+   A PWA cannot access the user's Reminders database directly. Instead, this
+   sends a local JSON payload to a user-owned Shortcut through Apple's documented
+   `shortcuts://run-shortcut?...&input=clipboard` bridge. No Planer data is sent
+   to a third-party server by this module.
+   ------------------------------------------------------------------------- */
+const AppleReminders = (() => {
+  const SHORTCUT_NAME = 'Planer to Reminders';
+  const text = (fa, en) => I18n.get() === 'fa' ? fa : en;
+  const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const pad = (n) => String(n).padStart(2, '0');
+
+  function dateValue(key, time) {
+    const date = Jalali.dateFromKey(key);
+    const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(time || ''));
+    const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    return match ? `${day} ${match[1]}:${match[2]}` : day;
+  }
+  function itemFromTask(task) {
+    if (task.completed || !task.date || !task.id) return null;
+    try {
+      const marker = `planer:${task.id}`;
+      const extra = [task.description, task.notes].map(v => String(v || '').trim()).filter(Boolean);
+      return {
+        id: String(task.id),
+        marker,
+        title: String(task.title || text('کار بدون عنوان', 'Untitled task')).trim().slice(0, 300),
+        due: dateValue(task.date, task.dueTime),
+        notes: [`Planer · ${marker}`, ...extra].join('\n\n').slice(0, 4000),
+      };
+    } catch { return null; }
+  }
+  async function pendingItems() {
+    const tasks = await DB.all('tasks');
+    return tasks.map(itemFromTask).filter(Boolean).sort((a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title));
+  }
+  async function summary() {
+    const items = await pendingItems();
+    return { count: items.length, items };
+  }
+  function makePayload(items) {
+    return JSON.stringify({
+      format: 'planer-reminders-v1',
+      generatedAt: new Date().toISOString(),
+      items,
+    });
+  }
+  async function copyPayload(value) {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return;
+    }
+    const area = el('textarea', { value, readonly: true, style: { position: 'fixed', opacity: '0', pointerEvents: 'none' } });
+    document.body.appendChild(area);
+    area.select();
+    const copied = document.execCommand('copy');
+    area.remove();
+    if (!copied) throw new Error('clipboard unavailable');
+  }
+  function runURL() {
+    return `shortcuts://run-shortcut?name=${encodeURIComponent(SHORTCUT_NAME)}&input=clipboard`;
+  }
+  function openShortcut() {
+    location.href = runURL();
+  }
+  function openManualPayload(payload) {
+    const box = el('textarea.textarea', { value: payload, readonly: true, 'aria-label': text('دادهٔ ارسال به Reminders', 'Reminders payload'),
+      style: { minHeight: '180px', direction: 'ltr', fontFamily: 'var(--font-mono)', fontSize: '12px' } });
+    const copy = el('button.btn.primary', { text: text('کپی و بازکردن Shortcut', 'Copy and open Shortcut'), onclick: async () => {
+      try { await copyPayload(payload); openShortcut(); } catch { UI.toast('error', text('کپی‌کردن داده انجام نشد.', 'Could not copy the data.')); }
+    } });
+    UI.modal({ title: text('ارسال دستی به Reminders', 'Manual Reminders transfer'),
+      body: el('.col.gap-3', {}, [
+        el('.hint', { text: text('مرورگر اجازهٔ دسترسی خودکار به Clipboard نداد. دکمهٔ زیر را بزنید؛ سپس Shortcut باز می‌شود.', 'The browser did not grant clipboard access. Use the button below, then the Shortcut will open.') }),
+        box, copy,
+      ]), width: '620px' });
+  }
+  function openSetup() {
+    const action = (n, body) => el('.card.pad.col.gap-1', {}, [
+      el('.small', { text: `${I18n.num(n)}. ${body}` }),
+    ]);
+    const body = el('.col.gap-3', {}, [
+      el('.hint', { text: text('این راه‌اندازی فقط یک‌بار لازم است. پس از آن، دکمهٔ ارسال در Planer همهٔ کارهای بازِ تاریخ‌دار را به Shortcut می‌فرستد.', 'This is needed once. Afterwards Planer sends every open, dated task to the Shortcut with one tap.') }),
+      action(1, text(`در Shortcuts یک Shortcut جدید بسازید و نام آن را دقیقاً «${SHORTCUT_NAME}» بگذارید.`, `Create a new Shortcut named exactly “${SHORTCUT_NAME}”.`)),
+      action(2, text('اکشن «Get Dictionary from Input» را اضافه کنید و ورودی را به آن وصل کنید.', 'Add “Get Dictionary from Input” and connect the Shortcut Input to it.')),
+      action(3, text('با «Get Dictionary Value» کلید items را بگیرید، سپس «Repeat with Each» را روی آن اجرا کنید.', 'Use “Get Dictionary Value” with key items, then “Repeat with Each” on that value.')),
+      action(4, text('درون Repeat، مقدارهای title، due و notes را از Repeat Item بگیرید. due را به «Get Dates from Input» بدهید.', 'Inside Repeat, get title, due, and notes from Repeat Item. Pass due to “Get Dates from Input”.')),
+      action(5, text('اکشن «Add New Reminder» را اضافه کنید: عنوان = title، تاریخ = خروجی Get Dates، یادداشت = notes. در اجرای اول، اجازهٔ Reminders را تأیید کنید.', 'Add “Add New Reminder”: title = title, due date = Get Dates output, notes = notes. Allow Reminders on its first run.')),
+      el('.hint', { text: text('برای جلوگیری از تکرار، می‌توانید پیش از Add New Reminder یک Find Reminders بگذارید که Notes شامل marker باشد؛ marker نیز از Repeat Item گرفته می‌شود.', 'To avoid duplicates, optionally add Find Reminders before Add New Reminder and filter Notes to contain marker from Repeat Item.') }),
+      el('button.btn.outline', { html: icon('plus') + `<span>${text('باز کردن ساخت Shortcut', 'Open Shortcut creator')}</span>`,
+        onclick: () => { location.href = 'shortcuts://create-shortcut'; } }),
+    ]);
+    UI.modal({ title: text('راه‌اندازی Apple Reminders', 'Set up Apple Reminders'), body, width: '620px' });
+  }
+  async function sendAll() {
+    if (!isIOS()) {
+      UI.toast('error', text('این اتصال فقط در آیفون یا آیپد اجرا می‌شود.', 'This integration runs only on iPhone or iPad.'));
+      return false;
+    }
+    const items = await pendingItems();
+    if (!items.length) {
+      UI.toast('info', text('هیچ کار بازِ تاریخ‌داری برای ارسال نیست.', 'There are no open, dated tasks to send.'));
+      return false;
+    }
+    const approved = await UI.confirm({
+      title: text('ارسال به Reminders', 'Send to Reminders'),
+      confirmLabel: text('ارسال و بازکردن Shortcut', 'Send and open Shortcut'),
+      message: text(`${I18n.num(items.length)} کار بازِ تاریخ‌دار به Shortcut فرستاده می‌شود. داده فقط موقتاً در Clipboard این دستگاه قرار می‌گیرد.`,
+        `${items.length} open, dated tasks will be sent to the Shortcut. Data is placed only temporarily in this device’s clipboard.`),
+    });
+    if (!approved) return false;
+    const payload = makePayload(items);
+    try {
+      await copyPayload(payload);
+    } catch {
+      openManualPayload(payload);
+      return false;
+    }
+    UI.toast('success', text(`${I18n.num(items.length)} کار آمادهٔ ورود به Reminders شد.`, `${items.length} tasks are ready for Reminders.`));
+    openShortcut();
+    return true;
+  }
+  function title() { return text('Apple Reminders', 'Apple Reminders'); }
+  function description(count) {
+    return text(
+      count ? `${I18n.num(count)} کار بازِ تاریخ‌دار آمادهٔ ارسال است. انتقال با Shortcut و فقط روی همین دستگاه انجام می‌شود.` : 'کار بازِ تاریخ‌داری برای ارسال ندارید.',
+      count ? `${count} open, dated tasks are ready to send. Transfer runs through a Shortcut on this device only.` : 'There are no open, dated tasks to send.',
+    );
+  }
+  return { isIOS, summary, sendAll, openSetup, title, description, shortcutName: SHORTCUT_NAME };
+})();
+
+/* ---------------------------------------------------------------------------
    13. Settings page (fully functional)
    ------------------------------------------------------------------------- */
 const Settings = (() => {
@@ -4309,6 +4444,24 @@ const Settings = (() => {
       cloudRows.push(el('.divider'), el('.row.wrap.gap-2', {}, actions));
     }
     wrap.appendChild(section('حساب و همگام‌سازی', cloudRows));
+
+    /* Apple Reminders — an explicit, local hand-off through the user's own
+       Shortcut. It is deliberately independent from account/cloud sync. */
+    const apple = await AppleReminders.summary();
+    const appleActions = [
+      el('button.btn.outline', { html: icon('settings') + `<span>${I18n.get() === 'fa' ? 'راه‌اندازی یک‌باره' : 'One-time setup'}</span>`,
+        onclick: () => AppleReminders.openSetup() }),
+      el('button.btn.primary', { html: icon('check') + `<span>${I18n.get() === 'fa' ? 'ارسال کارها به Reminders' : 'Send tasks to Reminders'}</span>`,
+        disabled: !AppleReminders.isIOS(), onclick: () => AppleReminders.sendAll() }),
+    ];
+    wrap.appendChild(section(AppleReminders.title(), [
+      rowItem(I18n.get() === 'fa' ? 'ارسال کارهای باز' : 'Send open tasks', el('.chip', {}, [
+        el('span', { html: icon('check') }), el('span', { text: I18n.num(apple.count) }),
+      ]), AppleReminders.description(apple.count)),
+      el('.divider'),
+      el('.row.wrap.gap-2', {}, appleActions),
+      !AppleReminders.isIOS() ? el('.hint', { text: I18n.get() === 'fa' ? 'برای اجرا، Planer را روی iPhone یا iPad باز کنید. این دکمه روی رایانه غیرفعال است.' : 'Open Planer on an iPhone or iPad to run this. The send button is disabled on desktop.' }) : null,
+    ]));
 
     /* Data & backup — ONE section for everything backup-related (previously
        split into "Data" + a duplicate "Create restore point" button hidden
