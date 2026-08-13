@@ -471,6 +471,7 @@ ul, ol { list-style: none; }
 .btn.sm { padding: 5px var(--s-3); font-size: var(--fs-sm); border-radius: var(--r-sm); }
 .btn.lg { padding: 11px var(--s-5); font-size: var(--fs-md); border-radius: var(--r-lg); }
 .btn.block { width: 100%; }
+.push-actions .btn { min-height: 44px; }
 /* Disclosure trigger (Views.advanced): chevron flips when the fold is open. */
 .btn.ghost.open svg.ic { transform: rotate(180deg); }
 
@@ -3414,6 +3415,24 @@ const Cloud = (() => {
     profile = { ...(profile || {}), display_name: value }; emit();
   }
   async function rpc(name, body) { return request('/rest/v1/rpc/' + name, { method: 'POST', body }); }
+  async function savePushSubscription(subscription) {
+    if (!session?.user) throw new Error('auth');
+    const json = subscription?.toJSON ? subscription.toJSON() : subscription;
+    const p256dh = json?.keys?.p256dh, auth = json?.keys?.auth;
+    if (!json?.endpoint || !p256dh || !auth) throw new Error('invalid subscription');
+    return rpc('upsert_push_subscription', {
+      p_endpoint: json.endpoint, p_p256dh: p256dh, p_auth: auth,
+      p_user_agent: navigator.userAgent.slice(0, 500),
+    });
+  }
+  async function removePushSubscription(endpoint) {
+    if (!session?.user || !endpoint) return;
+    return rpc('delete_push_subscription', { p_endpoint: endpoint });
+  }
+  async function sendPushTest() {
+    if (!session?.user) throw new Error('auth');
+    return request('/functions/v1/send-push-test', { method: 'POST', body: {} });
+  }
   async function adminListInvites() { return rpc('admin_list_invites', {}); }
   async function adminCreateInvite(code, maxUses, expiresAt) {
     return rpc('admin_create_invite', { p_code: code, p_max_uses: maxUses, p_expires_at: expiresAt || null });
@@ -3624,7 +3643,69 @@ const Cloud = (() => {
     else emit();
   }
   return { init, configured, status, phaseLabel, relativeTime, localCounts, migrateDeviceData, syncNow, networkChanged,
-    signOut, updateDisplayName, openAuthModal, openAdminModal, generateInvite, openPasswordUpdate };
+    signOut, updateDisplayName, savePushSubscription, removePushSubscription, sendPushTest,
+    openAuthModal, openAdminModal, generateInvite, openPasswordUpdate };
+})();
+
+/* ---------------------------------------------------------------------------
+   6c. Web Push — a device-specific subscription linked to the signed-in user
+   ------------------------------------------------------------------------- */
+const Push = (() => {
+  const text = (fa, en) => I18n.get() === 'fa' ? fa : en;
+  const supported = () => 'serviceWorker' in navigator && 'PushManager' in window && typeof Notification !== 'undefined';
+  const configKey = () => String(window.PLANER_SUPABASE?.pushVapidPublicKey || '');
+  const b64 = (value) => {
+    const source = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+    const padded = source + '='.repeat((4 - source.length % 4) % 4);
+    const bytes = atob(padded), out = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) out[i] = bytes.charCodeAt(i);
+    return out;
+  };
+  async function registration() {
+    if (!supported() || !configKey()) throw new Error('unsupported');
+    return navigator.serviceWorker.ready;
+  }
+  async function status() {
+    if (!supported() || !configKey()) return { supported: false, active: false, permission: 'unsupported' };
+    const reg = await registration();
+    const subscription = await reg.pushManager.getSubscription();
+    return { supported: true, active: !!subscription && Notification.permission === 'granted', permission: Notification.permission, subscription };
+  }
+  async function enable() {
+    if (!Cloud.status().session) throw new Error('auth');
+    if (!supported() || !configKey()) throw new Error('unsupported');
+    const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+    if (permission !== 'granted') throw new Error('permission');
+    const reg = await registration();
+    let subscription = await reg.pushManager.getSubscription();
+    if (!subscription) subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(configKey()) });
+    await Cloud.savePushSubscription(subscription);
+    Prefs.set('browserNotif', true);
+    return subscription;
+  }
+  async function disable() {
+    if (!supported()) { Prefs.set('browserNotif', false); return; }
+    const reg = await registration();
+    const subscription = await reg.pushManager.getSubscription();
+    if (subscription) {
+      await Cloud.removePushSubscription(subscription.endpoint).catch(() => {});
+      await subscription.unsubscribe().catch(() => {});
+    }
+    Prefs.set('browserNotif', false);
+  }
+  async function sendTest() {
+    const s = await status();
+    if (!s.active) throw new Error('inactive');
+    return Cloud.sendPushTest();
+  }
+  function message(error) {
+    const value = String(error?.message || error || '');
+    if (value.includes('permission')) return text('اجازهٔ اعلان داده نشده است.', 'Notification permission was not granted.');
+    if (value.includes('unsupported')) return text('این مرورگر اعلان Push را پشتیبانی نمی‌کند.', 'This browser does not support Push notifications.');
+    if (value.includes('auth')) return text('ابتدا وارد حساب شوید.', 'Sign in first.');
+    return text('فعال‌سازی اعلان انجام نشد. دوباره تلاش کنید.', 'Could not enable notifications. Try again.');
+  }
+  return { supported, status, enable, disable, sendTest, message };
 })();
 
 /* ---------------------------------------------------------------------------
@@ -4571,20 +4652,71 @@ const Settings = (() => {
     ]));
 
     /* System */
-    wrap.appendChild(section(I18n.t('sec_system'), [
-      rowItem(I18n.t('enableBrowserNotif'), toggle(p.browserNotif, async (v) => {
-        if (!v) { Prefs.set('browserNotif', false); return; }
-        // Turning it on needs the browser's own permission grant.
-        const res = await Notify.requestPermission();
-        if (res === 'granted') { Prefs.set('browserNotif', true); UI.toast('success', I18n.t('notifEnabled')); }
-        else { Prefs.set('browserNotif', false); UI.toast('error', I18n.t('notifBlocked')); Router.render(); }
-      }), I18n.t('browserNotifDesc')),
+    const systemRows = [];
+    const pushText = (fa, en) => I18n.get() === 'fa' ? fa : en;
+    const pushTitle = pushText('اعلان‌های Push', 'Push notifications');
+    if (!cloud.session) {
+      systemRows.push(rowItem(pushTitle, el('.chip', { text: pushText('نیازمند حساب', 'Account required') }),
+        pushText('برای دریافت اعلان حتی وقتی Planer باز نیست، ابتدا وارد حساب شوید.', 'Sign in to receive notifications while Planer is closed.')));
+    } else {
+      let pushState;
+      try { pushState = await Push.status(); } catch { pushState = { supported: false, active: false, permission: 'unsupported' }; }
+      if (!pushState.supported) {
+        const isApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const hint = isApple
+          ? pushText('در iPhone و iPad، Planer را از Safari با «Add to Home Screen» نصب کنید؛ سپس از نسخهٔ نصب‌شده اعلان را فعال کنید.', 'On iPhone and iPad, install Planer from Safari with Add to Home Screen, then enable notifications from the installed app.')
+          : pushText('این مرورگر یا نسخهٔ فعلی برنامه اعلان Push را پشتیبانی نمی‌کند.', 'This browser or app version does not support Push notifications.');
+        systemRows.push(rowItem(pushTitle, el('.chip', { text: pushText('پشتیبانی نمی‌شود', 'Unsupported') }), hint));
+      } else {
+        const blocked = pushState.permission === 'denied';
+        const stateLabel = pushState.active
+          ? pushText('فعال', 'Active')
+          : blocked ? pushText('مسدودشده', 'Blocked') : pushText('غیرفعال', 'Off');
+        const stateHint = pushState.active
+          ? pushText('یادآور کارهای بازِ دارای ساعت، حتی در زمان بسته‌بودن Planer، با اینترنت ارسال می‌شود.', 'Open tasks with a due time can notify you while Planer is closed, when online.')
+          : blocked
+            ? pushText('اجازهٔ اعلان در تنظیمات مرورگر یا سیستم‌عامل مسدود شده است.', 'Notification permission is blocked in browser or system settings.')
+            : pushText('اعلان‌ها به‌صورت امن برای همین دستگاه ثبت می‌شوند؛ برای زمان‌بندی، اینترنت لازم است.', 'Notifications are securely registered for this device; an internet connection is required for scheduling.');
+        systemRows.push(
+          rowItem(pushTitle, el('.row.gap-2', {}, [
+            el('.chip', { text: stateLabel }),
+            toggle(pushState.active, async (enabled) => {
+              try {
+                if (enabled) await Push.enable();
+                else await Push.disable();
+                UI.toast('success', enabled ? pushText('اعلان‌های Push فعال شد.', 'Push notifications are enabled.') : pushText('اعلان‌های Push این دستگاه غیرفعال شد.', 'Push notifications are disabled on this device.'));
+              } catch (error) {
+                UI.toast('error', Push.message(error));
+              } finally { Router.render(); }
+            }),
+          ]), stateHint),
+        );
+        if (pushState.active) {
+          systemRows.push(el('.row.wrap.gap-2.push-actions', {}, [
+            el('button.btn.outline', { html: icon('bell') + `<span>${pushText('ارسال اعلان آزمایشی', 'Send test notification')}</span>`,
+              onclick: async (event) => {
+                const button = event.currentTarget, old = button.innerHTML;
+                button.disabled = true; button.textContent = pushText('در حال ارسال…', 'Sending…');
+                try {
+                  const result = await Push.sendTest();
+                  if (!result?.sent) throw new Error('no subscription');
+                  UI.toast('success', pushText('اعلان آزمایشی ارسال شد.', 'Test notification sent.'));
+                } catch {
+                  UI.toast('error', pushText('اعلان آزمایشی ارسال نشد. اتصال و اجازهٔ اعلان را بررسی کنید.', 'Test notification was not sent. Check your connection and notification permission.'));
+                } finally { button.disabled = false; button.innerHTML = old; }
+              } }),
+          ]));
+        }
+      }
+    }
+    systemRows.push(
       el('.divider'),
       el('.row.between.gap-4', {}, [
         el('.col', {}, [ el('.label', { text: I18n.t('version') }), el('.hint', { text: `Planer · ${I18n.t('phase')} 0 · schema v${DB.VERSION}` }) ]),
         el('.chip', {}, [ el('span', { html: icon('layers') }), el('span', { text: '0.1.0' }) ]),
       ]),
-    ]));
+    );
+    wrap.appendChild(section(I18n.t('sec_system'), systemRows));
 
     /* Danger */
     wrap.appendChild(el('.card.pad.col.gap-4', { style: { borderColor: 'color-mix(in srgb, var(--red) 30%, var(--border))' } }, [

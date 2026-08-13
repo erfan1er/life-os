@@ -6,7 +6,7 @@ Planer همچنان یک PWA تک‌فایلی است و GitHub Pages فقط ر�
 
 1. در Supabase یک پروژه بسازید.
 2. از **Project Settings → API** مقدارهای `Project URL` و `anon public key` را بردارید.
-3. فایل `supabase-config.example.js` را به `supabase-config.js` کپی کنید و فقط همان دو مقدار عمومی را وارد کنید. فایل واقعی به‌علت `.gitignore` وارد Git نمی‌شود.
+3. فایل `supabase-config.example.js` را به `supabase-config.js` کپی کنید و فقط URL، `anon public key` و در صورت فعال‌بودن Push، کلید عمومی VAPID را وارد کنید. این مقادیر عمومی‌اند؛ هیچ secret یا service-role key در این فایل قرار ندهید.
 4. در **Authentication → Providers → Email** ورود ایمیل/رمز را فعال کنید و در **Authentication → Settings** گزینهٔ ثبت‌نام عمومی (معمولاً `Allow new users to sign up`) را خاموش کنید. این مرحله ضروری است: Edge Function با Service Role همچنان می‌تواند کاربر دعوت‌شده بسازد، اما فراخوانی مستقیم `/auth/v1/signup` با anon key دیگر حسابی ایجاد نمی‌کند.
 5. در **Authentication → URL Configuration** این آدرس‌ها را در **Redirect URLs** ثبت کنید (برای هر محیطی که واقعاً استفاده می‌کنید):
 
@@ -81,9 +81,9 @@ Realtime عمداً در این نسخه فعال نشده است: pull هنگا
 
 ## انتشار در GitHub Pages
 
-1. فایل‌های پروژه، از جمله `index.html`، `sw.js`، migration و README را commit/push کنید. `supabase-config.js` را commit نکنید.
+1. فایل‌های پروژه، از جمله `index.html`، `sw.js`، migration، README و `supabase-config.js` (فقط با کلیدهای عمومی) را commit/push کنید.
 2. در GitHub Pages، branch و پوشهٔ ریشهٔ انتشار را انتخاب کنید.
-3. برای محیط Pages، `supabase-config.js` واقعی باید کنار `index.html` روی همان origin deploy شود. چون فایل ignored است، آن را در روند deployment به‌صورت secret/build artifact تولید کنید؛ اگر workflow ندارید، باید آن را به‌صورت کنترل‌شده در میزبان قرار دهید.
+3. برای محیط Pages، `supabase-config.js` واقعی باید کنار `index.html` روی همان origin deploy شود. این فایل فقط تنظیمات عمومی کلاینت را دارد؛ secretها فقط در Supabase Secrets/Vault می‌مانند.
 4. هر بار که `index.html` تغییر می‌کند، نسخهٔ `CACHE` در `sw.js` را افزایش دهید تا PWA نصب‌شده نسخهٔ تازه را دریافت کند.
 
 ## محدودیت‌ها و نکات امنیتی
@@ -98,6 +98,13 @@ Realtime عمداً در این نسخه فعال نشده است: pull هنگا
 ## اتصال Apple Reminders
 
 Planer روی iPhone/iPad می‌تواند کارهای بازِ تاریخ‌دار را با یک دکمه به Shortcut شخصی شما بفرستد تا در Apple Reminders ساخته شوند. راه‌اندازی Shortcut فقط یک‌بار لازم است؛ راهنمای دقیق در [ios-reminders-shortcut.md](docs/ios-reminders-shortcut.md) قرار دارد. این انتقال یک‌طرفه است و برای این قابلیت داده‌ای به سرور جدیدی ارسال نمی‌شود.
+
+## اعلان Push در پس‌زمینه
+
+راهنمای فعال‌سازی، محدودیت‌های iPhone/Android/Desktop، migration زمان‌بندی و
+secretهای لازم در [web-push-notifications.md](docs/web-push-notifications.md)
+قرار دارد. کلید خصوصی VAPID و راز زمان‌بندی فقط در Supabase Secrets/Vault
+نگهداری می‌شوند.
 
 ## بررسی پیش از انتشار
 

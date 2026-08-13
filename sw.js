@@ -9,7 +9,7 @@
 // cache whose name differs from this constant, so the bump is what actually
 // evicts the previous shell — leave it alone and an installed PWA can keep
 // serving the old app from cache long after a deploy.
-const CACHE = 'planer-shell-v7-apple-reminders';
+const CACHE = 'planer-shell-v8-web-push';
 
 self.addEventListener('install', () => { self.skipWaiting(); });
 
@@ -35,4 +35,35 @@ self.addEventListener('fetch', (e) => {
       })
       .catch(() => caches.match(e.request).then((r) => r || caches.match('./')))
   );
+});
+
+// A Push event is delivered even while the PWA is not open. The server sends
+// only display data and a same-origin navigation target; account data remains
+// behind the normal authenticated application flow.
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch {}
+  const title = String(payload.title || 'Planer');
+  const options = {
+    body: String(payload.body || ''),
+    icon: './app-icon-192.png',
+    badge: './app-icon-192.png',
+    tag: String(payload.tag || 'planer'),
+    renotify: false,
+    data: { url: typeof payload.url === 'string' ? payload.url : './#/today' },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || './#/today', self.location.origin).href;
+  event.waitUntil((async () => {
+    const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of windows) {
+      if ('navigate' in client) await client.navigate(target);
+      return client.focus();
+    }
+    return clients.openWindow(target);
+  })());
 });
